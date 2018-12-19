@@ -11,9 +11,17 @@
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 		<title>HanBurger</title>
 		<link rel="shortcut icon" type="image/x-icon" href="assets/images/logo.ico">
+		<link rel="stylesheet" href="assets/styles/main.css">
+
+		<!-- Insert this line above script imports  -->
+		<script>if (typeof module === 'object') {window.module = module; module = undefined;}</script>
+
 		<script type="text/javascript" src="assets/vendors/jquery-3.3.1.min.js"></script>
 		<script type="text/javascript" src="assets/vendors/prefixfree.min.js"></script>
 		<script>(function(e,t,n){var r=e.querySelectorAll("html")[0];r.className=r.className.replace(/(^|\s)no-js(\s|$)/,"$1js$2")})(document,window,0);</script>
+
+		<!-- Insert this line after script imports -->
+		<script>if (window.module) module = window.module;</script>
 	</head>
 
 	<body>
@@ -40,28 +48,10 @@
 		<%if (download === true) { %>
 			<a href="/dl" class="btn-fab" ontouchstart>Download</a>
 		<% } %>
+		<a href="." class="btn-fab" style="line-height: 0; top: auto; bottom: 2em" ontouchstart>
+			<img src="assets/images/icon-refresh.svg" style="height: 1.5em">
+		</a>
+
 		<script src="assets/scripts/main.js"></script>
-
-		<link rel="stylesheet" href="assets/styles/main.css">
-		<style>
-			.btn-fab {
-				position: absolute;
-				top: 2em;
-				right: 2em;
-				padding: 1em;
-				background-color: white;
-				box-shadow: 0 0 1em .3em rgba(15, 60, 75, .1);
-				border-radius: 2em;
-				text-decoration: none;
-				font-weight: bold;
-				opacity: .7;
-			}
-
-			.btn-fab:active {
-				opacity: initial;
-				transform: scale(1.15);
-				transition: transform .3s;
-			}
-		</style>
 	</body>
 </html>

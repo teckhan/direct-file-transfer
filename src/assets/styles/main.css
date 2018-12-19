@@ -106,11 +106,6 @@ body {
 	top: 0; left: 0; right: 0; bottom: 0;
 	cursor: pointer;
 }
-.js .box__file + label:hover + strong,
-.box__file:focus + label + strong,
-.box__file.has-focus + label + strong {
-	color: #39bfd3;
-}
 .js .box__file:focus + label,
 .js .box__file.has-focus + label {
 	outline: 1px dotted #000;
@@ -129,4 +124,28 @@ body {
 .box__button:hover,
 .box__button:focus {
 	background-color: #0f3c4b;
+}
+
+.btn-fab {
+	position: absolute;
+	top: 2em;
+	right: 2em;
+	padding: 1em;
+	background-color: white;
+	box-shadow: 0 0 1em .3em rgba(15, 60, 75, .1);
+	border-radius: 2em;
+	text-decoration: none;
+	font-weight: bold;
+	opacity: .7;
+}
+
+.btn-fab > * {
+	user-select: none;
+}
+
+.btn-fab:hover,
+.btn-fab:active {
+	opacity: initial;
+	transform: scale(1.15);
+	transition: transform .3s;
 }

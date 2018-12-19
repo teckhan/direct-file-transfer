@@ -2,9 +2,13 @@
 	"name": "local-file-transfer",
 	"version": "1.0.0",
 	"description": "",
-	"main": "index.js",
+	"main": "./main.js",
 	"scripts": {
-		"start": "node index.js"
+		"start": "node src/index.js",
+		"dev": "electron .",
+		"build-mac": "electron-packager . LocalFileTransfer --overwrite --platform=darwin --arch=x64 --icon=src/assets/images/icon.icns --prune=true --out=release-builds",
+		"build-win": "electron-packager . LocalFileTransfer --overwrite --asar=true --platform=win32 --arch=ia32 --icon=src/assets/images/icon.ico --prune=true --out=release-builds --version-string.CompanyName=WtH --version-string.FileDescription=LocalFileTransfer --version-string.ProductName=\"LocalFileTransfer\"",
+		"build-linux": "electron-packager . LocalFileTransfer --overwrite --asar=true --platform=linux --arch=x64 --icon=src/assets/images/icon.png --prune=true --out=release-builds"
 	},
 	"repository": {
 		"type": "git",
@@ -15,5 +19,8 @@
 	"bugs": {
 		"url": "https://github.com/wth193/local-file-transfer/issues"
 	},
-	"homepage": "https://github.com/wth193/local-file-transfer#readme"
+	"homepage": "https://github.com/wth193/local-file-transfer#readme",
+	"devDependencies": {
+		"electron": "^3.0.13"
+	}
 }

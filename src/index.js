@@ -6,6 +6,8 @@ const ip = require("ip");
 const fileUpload = require('express-fileupload');
 const zip = require('express-zip');
 const app = express();
+const port = 80;
+const ipLocal = ip.address() + (port != '80' ? ':' + port : '');
 
 const pathFileDefault = path.join(require('os').homedir(), 'Desktop');;
 let filenames = [
@@ -22,11 +24,12 @@ app
 	.engine('html', require('ejs').renderFile)
 
 	.get('/', function (req, res) {
-		let isHost = ['127.0.0.1', '::ffff:127.0.0.1', '::1'].indexOf(req.connection.remoteAddress) > -1 || req.get('host').indexOf("localhost") !== -1;
+		let isHost = req.ip.indexOf(ip.address()) > -1 || ['127.0.0.1', '::ffff:127.0.0.1', '::1'].indexOf(req.ip) > -1;
+		// isHost = false;
 
 		res.setHeader("Cache-Control", "no-cache, must-revalidate")
 		if (isHost)
-			res.render(path.join(__dirname, './transfer.html')); // prepare & transfer files to owner's device
+			res.render(path.join(__dirname, './transfer.html'), { ip: ipLocal }); // prepare & transfer files to owner's device
 		else
 			res.render(path.join(__dirname, './index.html'), { download: filenames.length > 0 }); // prepare files to transfer from owner's device
 	})
@@ -107,6 +110,10 @@ app
 			));
 		}
 	})
-	.listen('80', function(){
+	.listen(port, function () {
 		console.log( ip.address() + (this.address().port != '80' ? ':' + this.address().port : '') );
 	})
+
+module.exports = {
+	ip: ipLocal
+}

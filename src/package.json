@@ -1,0 +1,18 @@
+{
+	"name": "local-file-transfer",
+	"version": "1.0.0",
+	"description": "",
+	"scripts": {
+		"start": "node index.js"
+	},
+	"author": "Wong Teck Han",
+	"license": "ISC",
+	"dependencies": {
+		"ejs": "^2.6.1",
+		"express": "^4.16.4",
+		"express-fileupload": "^1.0.0",
+		"express-zip": "^2.0.1",
+		"helmet": "^3.15.0",
+		"ip": "^1.1.5"
+	}
+}
