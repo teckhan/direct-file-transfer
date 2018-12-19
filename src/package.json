@@ -13,6 +13,7 @@
 		"express-fileupload": "^1.0.0",
 		"express-zip": "^2.0.1",
 		"helmet": "^3.15.0",
-		"ip": "^1.1.5"
+		"ip": "^1.1.5",
+		"lodash": "^4.17.11"
 	}
 }
