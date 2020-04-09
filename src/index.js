@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const ip = require("ip");
 const fileUpload = require('express-fileupload');
-const zip = require('express-zip');
 const app = express();
 const port = 80;
 const ipLocal = ip.address() + (port != '80' ? ':' + port : '');
