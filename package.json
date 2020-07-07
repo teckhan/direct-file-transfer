@@ -21,6 +21,6 @@
 	},
 	"homepage": "https://github.com/wth193/local-file-transfer#readme",
 	"devDependencies": {
-		"electron": "^3.0.13"
+		"electron": "^9.1.0"
 	}
 }
