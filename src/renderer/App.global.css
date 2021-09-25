@@ -1,0 +1,15 @@
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+
+*, *:before, *:after { box-sizing: border-box }
+body {
+  position: relative;
+  margin: 0;
+  font-family: Roboto, sans-serif;
+  min-height: 100vh;
+}
+
+body, #root, main {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+}

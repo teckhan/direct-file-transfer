@@ -1,0 +1,12 @@
+.toolbar {
+  display: block;
+  padding: 1rem;
+  width: 100%;
+  background-color: #6b5000;
+  color: white;
+  text-align: center;
+  font-weight: 700;
+  user-select: text;
+  border: 0;
+  outline: 0;
+}

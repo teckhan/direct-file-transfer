@@ -1,0 +1,64 @@
+.list {
+  padding: 1rem;
+
+  & > *:not(:first-child) {
+    margin-top: .5rem;
+  }
+}
+
+.button {
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  background-color: transparent;
+  outline: 0;
+  border: 0;
+  border-radius: .625rem;
+  color: #6b5000;
+  background-color: #ffc107;
+  text-align: left;
+  animation-name: bounce-in;
+  animation-duration: .3s;
+  animation-fill-mode: both;
+  transition: all ease-out .15s;
+
+  &:hover {
+    background-color: #d19d00;
+    transform: scale(.99);
+  }
+}
+
+.downloadable {
+  display: flex;
+  align-items: center;
+  padding: .625rem 1.25rem;
+
+  & > div {
+    flex-grow: 1;
+  }
+}
+
+.removeAll {
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  background-color: transparent;
+  outline: 0;
+  border: 0;
+  border-radius: .625rem;
+  color: white;
+  background-color: #6b5000;
+  transition: all ease-out .15s;
+
+  &:hover {
+    background-color: black;
+    transform: scale(.99);
+  }
+}
+
+@keyframes bounce-in {
+  from { opacity: .8; transform: scale(.95); }
+  to { opacity: 1; transform: scale(1); }
+}

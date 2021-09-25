@@ -1,0 +1,48 @@
+.list {
+  --color-primary: #ffc107;
+  padding: 1rem;
+  color: white;
+  font-size: 14px;
+
+  & > *:not(:first-child) {
+    margin-top: .5rem;
+  }
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  animation-name: bounce-in;
+  animation-duration: .3s;
+  animation-fill-mode: both;
+
+  &:not(:first-child) {
+    margin-top: 1rem;;
+  }
+}
+
+.progress {
+  position: relative;
+  margin-top: .5rem;
+  background: white;
+  height: .5rem;
+  width: 100%;
+  border-radius: .5rem;
+  overflow: hidden;
+
+  &:before {
+    content: '';
+    position: absolute;
+    width: var(--width, 0);
+    height: inherit;
+    border-radius: inherit;
+    background-color: var(--color-primary, black);
+    transition: width .3s;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1)
+  }
+}
+
+@keyframes bounce-in {
+  from { opacity: .8; transform: scale(.95); }
+  to { opacity: 1; transform: scale(1); }
+}
