@@ -1,9 +1,13 @@
 <template>
     <div class="container">
-        <Host />
+        <Host v-if="isHost" />
+        <Guest v-else />
     </div>
 </template>
 
-<script setup lang="ts">
-import Host from "./pages/Host.vue";
+<script lang="ts" setup>
+import Host from "./pages/Host.vue"
+import Guest from "./pages/Guest.vue"
+
+const isHost = '__TAURI__' in window
 </script>
