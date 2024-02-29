@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::signal::ctrl_c;
-use actix_web::{get, web, App, HttpServer, HttpResponse, Responder};
+use actix_web::{get, web, App, HttpServer, HttpRequest, HttpResponse, Responder, main};
 use uuid::Uuid;
 use serde_json::json;
 use lazy_static::lazy_static;
@@ -40,6 +40,7 @@ fn extract_filename(path: &str) -> String {
 // #region endpoints
 #[get("/")]
 async fn index() -> impl Responder {
+	// HttpResponse::Ok().body(html_content)
 	format!("Running!")
 }
 
@@ -47,6 +48,16 @@ async fn index() -> impl Responder {
 async fn get_ip() -> impl Responder {
    	let my_local_ip = local_ip().unwrap();
     format!("{}", my_local_ip)
+}
+
+#[get("/client-ip")] // TODO: remove
+async fn get_client_ip(req: HttpRequest) -> impl Responder {
+    let remote_addr = req.connection_info().realip_remote_addr().map(|addr| addr.to_string());
+
+    match remote_addr {
+        Some(addr) => HttpResponse::Ok().body(addr),
+        None => HttpResponse::Ok().body("Unavailable"), // Informative message when IP cannot be retrieved
+    }
 }
 
 #[get("/list")]
@@ -135,13 +146,17 @@ async fn download_all() -> HttpResponse {
     HttpResponse::Ok()
         .append_header(("Content-Type", "application/zip"))
         .append_header(("Content-Disposition", "attachment; filename=\"files.zip\""))
-        .body(actix_web::web::Bytes::copy_from_slice(&cursor.into_inner()))
+        .body(web::Bytes::copy_from_slice(&cursor.into_inner()))
 }
 // #endregion
 
-#[actix_web::main]
-pub async fn start() -> std::io::Result<()> {
+#[main]
+pub async fn start(resource_path: &str) -> std::io::Result<()> {
     let (tx, mut rx) = mpsc::channel(1); // Create a channel for shutdown signal
+
+    let file_content = std::fs::read_to_string(resource_path).unwrap();
+
+    std::println!("etsst {}", file_content);
 
     tokio::spawn(async move {
         if let Err(err) = ctrl_c().await {
@@ -154,6 +169,7 @@ pub async fn start() -> std::io::Result<()> {
 	    App::new()
 	    	.service(index)
 	    	.service(get_ip)
+	    	.service(get_client_ip)
 	    	.service(list)
 	     	.service(download)
 	     	.service(download_all)

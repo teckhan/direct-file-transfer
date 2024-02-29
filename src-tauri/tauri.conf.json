@@ -1,7 +1,7 @@
 {
-    "productName": "direct-file-transfer",
+    "productName": "Direct File transfer",
     "version": "1.0.0",
-    "identifier": "com.dfs.dev",
+    "identifier": "com.dft.dev",
     "build": {
         "beforeDevCommand": "yarn dev",
         "devUrl": "http://localhost:1420",
@@ -9,11 +9,13 @@
         "frontendDist": "../dist"
     },
     "app": {
+        "withGlobalTauri": true,
         "windows": [
             {
-                "title": "Direct File Transfer",
-                "width": 800,
-                "height": 600
+                "title": "",
+                "width": 384,
+                "height": 384,
+                "center": true
             }
         ],
         "security": {
@@ -29,6 +31,7 @@
             "icons/128x128@2x.png",
             "icons/icon.icns",
             "icons/icon.ico"
-        ]
+        ],
+        "resources": ["../dist/*"]
     }
 }
