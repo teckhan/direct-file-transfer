@@ -1,13 +1,29 @@
 <template>
-    <div class="container">
+    <main class="container">
         <Host v-if="isHost" />
         <Guest v-else />
-    </div>
+    </main>
+    <Toaster />
 </template>
 
 <script lang="ts" setup>
-import Host from "./pages/Host.vue"
-import Guest from "./pages/Guest.vue"
+import { Toaster } from "@/components/ui/sonner";
+import Host from "./pages/Host.vue";
+import Guest from "./pages/Guest.vue";
 
-const isHost = '__TAURI__' in window
+const isHost = "__TAURI__" in window;
 </script>
+
+<style global>
+@import "assets/index.css";
+
+body {
+    @apply min-h-screen;
+}
+
+body,
+#app,
+main {
+    @apply flex grow flex-col;
+}
+</style>
