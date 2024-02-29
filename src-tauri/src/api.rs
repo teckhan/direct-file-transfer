@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::signal::ctrl_c;
 use actix_web::{get, web, App, HttpServer, HttpRequest, HttpResponse, Responder, main};
+use actix_files as fs;
 use uuid::Uuid;
 use serde_json::json;
 use lazy_static::lazy_static;
@@ -38,12 +39,6 @@ fn extract_filename(path: &str) -> String {
 }
 
 // #region endpoints
-#[get("/")]
-async fn index() -> impl Responder {
-	// HttpResponse::Ok().body(html_content)
-	format!("Running!")
-}
-
 #[get("/ip")]
 async fn get_ip() -> impl Responder {
    	let my_local_ip = local_ip().unwrap();
@@ -154,9 +149,7 @@ async fn download_all() -> HttpResponse {
 pub async fn start(resource_path: &str) -> std::io::Result<()> {
     let (tx, mut rx) = mpsc::channel(1); // Create a channel for shutdown signal
 
-    let file_content = std::fs::read_to_string(resource_path).unwrap();
-
-    std::println!("etsst {}", file_content);
+    let resource_path = std::sync::Arc::new(resource_path.to_owned());
 
     tokio::spawn(async move {
         if let Err(err) = ctrl_c().await {
@@ -165,9 +158,10 @@ pub async fn start(resource_path: &str) -> std::io::Result<()> {
         tx.send(()).await.unwrap(); // Send shutdown signal
     });
 
-    HttpServer::new(|| {
+    HttpServer::new(move || {
+    	let resource_path = resource_path.clone();
 	    App::new()
-	    	.service(index)
+        	.service(fs::Files::new("/", resource_path.clone().as_ref()).show_files_listing().index_file("index.html").use_last_modified(true))
 	    	.service(get_ip)
 	    	.service(get_client_ip)
 	    	.service(list)

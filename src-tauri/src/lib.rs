@@ -22,7 +22,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![add_file, clear_files])
         .setup(|app| {
         	// TODO: _up_ issue
-      		let resource_path = app.path().resolve("_up_/dist/index.html", tauri::path::BaseDirectory::Resource).unwrap().display().to_string();
+      		let resource_path = app.path().resolve("_up_/dist", tauri::path::BaseDirectory::Resource).unwrap().display().to_string();
         	tauri::async_runtime::spawn(async move {
 				let server_handle = thread::spawn(move || {
 					api::start(&resource_path).unwrap();
