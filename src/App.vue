@@ -7,11 +7,19 @@
 </template>
 
 <script lang="ts" setup>
+import { unref } from "vue";
+import { useDark } from "@vueuse/core";
+
 import { Toaster } from "@/components/ui/sonner";
-import Host from "./pages/Host.vue";
-import Guest from "./pages/Guest.vue";
+import Host from "@/pages/Host.vue";
+import Guest from "@/pages/Guest.vue";
 
 const isHost = "__TAURI__" in window;
+
+const isDark = useDark();
+unref(isDark)
+    ? document.documentElement.classList.add("dark")
+    : document.documentElement.classList.remove("dark");
 </script>
 
 <style global>
