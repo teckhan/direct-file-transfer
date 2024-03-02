@@ -15,7 +15,7 @@
                     <Trash2Icon class="mr-2 h-4 w-4" />
                     Clear All
                 </Button>
-                <Button size="lg" @click="addFilesToHost">
+                <Button size="lg" @click="openFilePickerToAddFilesToHost">
                     <PlusSquareIcon class="mr-2 h-4 w-4" />
                     Add files
                 </Button>
@@ -31,6 +31,7 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { readDir } from "@tauri-apps/plugin-fs";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ref, unref, onUnmounted } from "vue";
 
@@ -42,8 +43,10 @@ import FileHostingTable from "@/components/organisms/FileHostingTable.vue";
 
 import { toast } from "vue-sonner";
 
-const list = ref<FileViewModel[]>([]);
 const unlistenList: Awaited<ReturnType<typeof listen>>[] = [];
+
+// #region listing
+const list = ref<FileViewModel[]>([]);
 listen("file-added", (event) => {
     list.value = [
         ...unref(list).filter(
@@ -57,31 +60,28 @@ listen("file-added", (event) => {
         },
     ];
 }).then((cb) => unlistenList.push(cb));
-listen("cleared-all", () => (list.value = [])).then((cb) =>
-    unlistenList.push(cb),
-);
-onUnmounted(() => unlistenList.forEach((unlisten) => unlisten()));
+listen("cleared-all", () => {
+    list.value = [];
+}).then((cb) => unlistenList.push(cb));
+// #endregion
 
-const addFilesToHost = async () => {
+// #region add files to host
+const addFilesToHost = (filePaths: string[]) => {
     try {
-        const files = await open({
-            multiple: true,
+        if (!Array.isArray(filePaths))
+            throw new Error("No files are selected.");
+
+        filePaths.forEach((filePath) => {
+            invoke("add_file", { path: filePath });
         });
 
-        if (!files) throw new Error("Failed to select files.");
-        if (!Array.isArray(files)) throw new Error("No files are selected.");
-
-        files.forEach((file) => {
-            invoke("add_file", { path: file.path });
-        });
-
-        if (files.length === 1) {
+        if (filePaths.length === 1) {
             toast.success("Successful Addition!", {
-                description: `Your file "${files[0].path}" is successfully added.`,
+                description: `Your file "${filePaths[0]}" is successfully added.`,
             });
         } else {
             toast.success("Successful Addition!", {
-                description: `Your files are successfully added: ${files.map((file) => file.path).join(", ")}`,
+                description: `Your files are successfully added: ${filePaths.join(", ")}`,
             });
         }
     } catch (error) {
@@ -91,6 +91,46 @@ const addFilesToHost = async () => {
         });
     }
 };
+const openFilePickerToAddFilesToHost = async () => {
+    try {
+        const files = await open({
+            multiple: true,
+        });
+        if (!files) throw new Error("Failed to select files.");
+
+        addFilesToHost(files.map((file) => file.path));
+    } catch (error) {
+        toast.error("Failed to add file to host!", {
+            // @ts-ignore
+            description: error,
+        });
+    }
+};
+listen("tauri://file-drop", async (event) => {
+    // TODO: drag and drop ui
+
+    const directoryPaths = (
+        await Promise.all(
+            event.payload.paths.map(
+                async (path) =>
+                    await readDir(path)
+                        .then(() => path)
+                        .catch(() => null),
+            ),
+        )
+    ).filter((v) => v);
+
+    if (directoryPaths.length > 0) {
+        toast.error("Cannot add directory!", {
+            // @ts-ignore
+            description: directoryPaths.join(", "),
+        });
+        return;
+    }
+
+    addFilesToHost(event.payload.paths);
+}).then((cb) => unlistenList.push(cb));
+// #endregion
 
 const clearAllFilesToHost = async () => {
     const isConfirmed = await confirm(
@@ -108,4 +148,6 @@ const clearAllFilesToHost = async () => {
         description: `All your files are successfully cleared..`,
     });
 };
+
+onUnmounted(() => unlistenList.forEach((unlisten) => unlisten()));
 </script>
