@@ -1,30 +1,50 @@
 <template>
-    <div class="flex flex-col m-auto sm:mt-32 sm:mb-4 w-full">
-        <div class="flex py-4 items-center">
-            <div
-                class="grid sm:grid-flow-col gap-2 items-center w-full sm:ml-auto sm:w-auto"
+    <div class="grow flex flex-col">
+        <Transition
+            enter-from-class="scale-105 opacity-80"
+            leave-active-class="opacity-0"
+        >
+            <section
+                v-show="doShowDragAndDrop"
+                class="cursor-grabbing select-none fixed inset-0 z-10 flex flex-col bg-black transition ease-in"
             >
-                <Button
-                    :class="{ hidden: list.length === 0 }"
-                    class="order-2 sm:order-none"
-                    variant="destructive"
-                    size="lg"
-                    :disabled="list.length === 0"
-                    @click="clearAllFilesToHost"
+                <div class="p-8 grow flex flex-col pointer-events-none">
+                    <div
+                        class="grow flex flex-col p-4 border-4 border-white border-dashed rounded-lg"
+                    >
+                        <UploadIcon
+                            class="animate-[appear-from-inside_300ms_150ms_ease-in-out_backwards] m-auto w-full h-full max-w-20"
+                        />
+                    </div>
+                </div>
+            </section>
+        </Transition>
+
+        <div class="flex flex-col m-auto sm:mt-32 sm:mb-4 w-full">
+            <div class="flex py-4 items-center">
+                <div
+                    class="grid sm:grid-flow-col gap-2 items-center w-full sm:ml-auto sm:w-auto"
                 >
-                    <Trash2Icon class="mr-2 h-4 w-4" />
-                    Clear All
-                </Button>
-                <Button size="lg" @click="openFilePickerToAddFilesToHost">
-                    <PlusSquareIcon class="mr-2 h-4 w-4" />
-                    Add files
-                </Button>
+                    <Button
+                        :class="{ hidden: list.length === 0 }"
+                        class="order-2 sm:order-none"
+                        variant="destructive"
+                        size="lg"
+                        :disabled="list.length === 0"
+                        @click="clearAllFilesToHost"
+                    >
+                        <Trash2Icon class="mr-2 h-4 w-4" />
+                        Clear All
+                    </Button>
+                    <Button size="lg" @click="openFilePickerToAddFilesToHost">
+                        <PlusSquareIcon class="mr-2 h-4 w-4" />
+                        Add files
+                    </Button>
+                </div>
             </div>
+
+            <FileHostingTable :list="list" />
         </div>
-
-        <FileHostingTable :list="list" />
-
-        <!-- TODO:  tauri drag drop zone -->
     </div>
 </template>
 
@@ -37,7 +57,7 @@ import { ref, unref, onUnmounted } from "vue";
 
 import { FileViewModel } from "@/types/File";
 
-import { PlusSquareIcon, Trash2Icon } from "lucide-vue-next";
+import { PlusSquareIcon, Trash2Icon, UploadIcon } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import FileHostingTable from "@/components/organisms/FileHostingTable.vue";
 
@@ -66,28 +86,21 @@ listen("cleared-all", () => {
 // #endregion
 
 // #region add files to host
+const doShowDragAndDrop = ref(false);
 const addFilesToHost = (filePaths: string[]) => {
-    try {
-        if (!Array.isArray(filePaths))
-            throw new Error("No files are selected.");
+    if (!Array.isArray(filePaths)) throw new Error("No files are selected.");
 
-        filePaths.forEach((filePath) => {
-            invoke("add_file", { path: filePath });
+    filePaths.forEach((filePath) => {
+        invoke("add_file", { path: filePath });
+    });
+
+    if (filePaths.length === 1) {
+        toast.success("Successful Addition!", {
+            description: `Your file "${filePaths[0]}" is successfully added.`,
         });
-
-        if (filePaths.length === 1) {
-            toast.success("Successful Addition!", {
-                description: `Your file "${filePaths[0]}" is successfully added.`,
-            });
-        } else {
-            toast.success("Successful Addition!", {
-                description: `Your files are successfully added: ${filePaths.join(", ")}`,
-            });
-        }
-    } catch (error) {
-        toast.error("Failed to add file to host!", {
-            // @ts-ignore
-            description: error,
+    } else {
+        toast.success("Successful Addition!", {
+            description: `Your files are successfully added: ${filePaths.join(", ")}`,
         });
     }
 };
@@ -107,8 +120,6 @@ const openFilePickerToAddFilesToHost = async () => {
     }
 };
 listen("tauri://file-drop", async (event) => {
-    // TODO: drag and drop ui
-
     const directoryPaths = (
         await Promise.all(
             event.payload.paths.map(
@@ -128,7 +139,22 @@ listen("tauri://file-drop", async (event) => {
         return;
     }
 
-    addFilesToHost(event.payload.paths);
+    try {
+        addFilesToHost(event.payload.paths);
+    } catch (error) {
+        toast.error("Failed to add file to host!", {
+            // @ts-ignore
+            description: error,
+        });
+    } finally {
+        doShowDragAndDrop.value = false;
+    }
+}).then((cb) => unlistenList.push(cb));
+listen("tauri://file-drop-hover", async () => {
+    doShowDragAndDrop.value = true;
+}).then((cb) => unlistenList.push(cb));
+listen("tauri://file-drop-cancelled", async () => {
+    doShowDragAndDrop.value = false;
 }).then((cb) => unlistenList.push(cb));
 // #endregion
 
