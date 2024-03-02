@@ -1,98 +1,79 @@
 <template>
-    <div>
-        <div class="flex py-4" items-center>
-            <div class="ml-auto flex gap-2 items-center">
-                <Button variant="secondary" size="lg" @click="$emit('upload')">
-                    <UploadIcon class="mr-2 h-4 w-4" />
-                    Upload
-                </Button>
-                <Button
-                    class="ml-auto"
-                    size="lg"
-                    :disabled="list?.length === 0"
-                    @click="$emit('download-all')"
+    <div class="rounded-md border">
+        <Table>
+            <TableHeader>
+                <TableRow
+                    v-for="headerGroup in table.getHeaderGroups()"
+                    :key="headerGroup.id"
                 >
-                    <DownloadIcon class="mr-2 h-4 w-4" />
-                    Download All
-                </Button>
-            </div>
-        </div>
-        <div class="rounded-md border">
-            <Table>
-                <TableHeader>
-                    <TableRow
-                        v-for="headerGroup in table.getHeaderGroups()"
-                        :key="headerGroup.id"
+                    <TableHead
+                        v-for="header in headerGroup.headers"
+                        :key="header.id"
+                        :data-pinned="header.column.getIsPinned()"
+                        :class="
+                            cn(
+                                {
+                                    'sticky bg-background/95':
+                                        header.column.getIsPinned(),
+                                },
+                                header.column.getIsPinned() === 'left'
+                                    ? 'left-0'
+                                    : 'right-0',
+                            )
+                        "
                     >
-                        <TableHead
-                            v-for="header in headerGroup.headers"
-                            :key="header.id"
-                            :data-pinned="header.column.getIsPinned()"
+                        <FlexRender
+                            v-if="!header.isPlaceholder"
+                            :render="header.column.columnDef.header"
+                            :props="header.getContext()"
+                        />
+                    </TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                <template v-if="table.getRowModel().rows?.length">
+                    <TableRow
+                        v-for="row in table.getRowModel().rows"
+                        :key="row.id"
+                    >
+                        <TableCell
+                            v-for="cell in row.getVisibleCells()"
+                            :key="cell.id"
+                            :data-pinned="cell.column.getIsPinned()"
                             :class="
                                 cn(
                                     {
                                         'sticky bg-background/95':
-                                            header.column.getIsPinned(),
+                                            cell.column.getIsPinned(),
                                     },
-                                    header.column.getIsPinned() === 'left'
+                                    cell.column.getIsPinned() === 'left'
                                         ? 'left-0'
                                         : 'right-0',
+                                    {
+                                        'w-[1%] whitespace-nowrap':
+                                            cell.column.id === 'actions',
+                                    },
                                 )
                             "
                         >
                             <FlexRender
-                                v-if="!header.isPlaceholder"
-                                :render="header.column.columnDef.header"
-                                :props="header.getContext()"
+                                :render="cell.column.columnDef.cell"
+                                :props="cell.getContext()"
                             />
-                        </TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    <template v-if="table.getRowModel().rows?.length">
-                        <TableRow
-                            v-for="row in table.getRowModel().rows"
-                            :key="row.id"
-                        >
-                            <TableCell
-                                v-for="cell in row.getVisibleCells()"
-                                :key="cell.id"
-                                :data-pinned="cell.column.getIsPinned()"
-                                :class="
-                                    cn(
-                                        {
-                                            'sticky bg-background/95':
-                                                cell.column.getIsPinned(),
-                                        },
-                                        cell.column.getIsPinned() === 'left'
-                                            ? 'left-0'
-                                            : 'right-0',
-                                        {
-                                            'w-[1%] whitespace-nowrap':
-                                                cell.column.id === 'actions',
-                                        },
-                                    )
-                                "
-                            >
-                                <FlexRender
-                                    :render="cell.column.columnDef.cell"
-                                    :props="cell.getContext()"
-                                />
-                            </TableCell>
-                        </TableRow>
-                    </template>
-
-                    <TableRow v-else>
-                        <TableCell
-                            col-span="{columns.length}"
-                            class="h-24 text-center w-full"
-                        >
-                            No results.
                         </TableCell>
                     </TableRow>
-                </TableBody>
-            </Table>
-        </div>
+                </template>
+
+                <TableRow v-else>
+                    <TableCell
+                        col-span="{columns.length}"
+                        class="h-24 text-center w-full"
+                    >
+                        No results.
+                    </TableCell>
+                </TableRow>
+            </TableBody>
+        </Table>
 
         <div class="flex items-center justify-end space-x-2 py-4">
             <div class="space-x-2">
@@ -129,7 +110,7 @@ import {
     getPaginationRowModel,
     useVueTable,
 } from "@tanstack/vue-table";
-import { DownloadIcon, UploadIcon } from "lucide-vue-next";
+import { DownloadIcon } from "lucide-vue-next";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -153,8 +134,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
     download: [id: string];
-    "download-all": [];
-    upload: [];
 }>();
 
 const columnHelper = createColumnHelper<FileViewModel>();
