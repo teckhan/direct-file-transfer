@@ -18,10 +18,11 @@ use local_ip_address::local_ip;
 lazy_static! {
     static ref FILE_LIST: Mutex<HashMap<String, Uuid>> = Mutex::new(HashMap::new());
 }
-pub fn add_file(path: &str) {
+pub fn add_file(path: &str) -> Uuid {
     let mut file_list = FILE_LIST.lock().unwrap();
     let id = Uuid::new_v4();
     file_list.entry(String::from(path)).or_insert(id);
+    id
 }
 pub fn clear_files() {
 	FILE_LIST.lock().unwrap().clear();

@@ -1,15 +1,24 @@
 use std::thread;
-use tauri::Manager;
+use tauri::{AppHandle, Manager};
 
 mod api;
 
-#[tauri::command]
-fn add_file(path: &str) {
-	api::add_file(path)
+// the payload type must implement `Serialize` and `Clone`.
+#[derive(Clone, serde::Serialize)]
+struct FileAddedPayload {
+	id: String,
+	path: String,
 }
 
 #[tauri::command]
-fn clear_files() {
+fn add_file(app: AppHandle, path: &str) {
+	let file_id = api::add_file(path);
+	app.emit("file-added", FileAddedPayload { id: file_id.to_string(), path: path.to_string() }).unwrap();
+}
+
+#[tauri::command]
+fn clear_files(app: AppHandle) {
+	app.emit("cleared-all", ()).unwrap();
 	api::clear_files()
 }
 

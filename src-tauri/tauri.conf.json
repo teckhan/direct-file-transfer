@@ -13,8 +13,8 @@
         "windows": [
             {
                 "title": "",
-                "width": 384,
-                "height": 384,
+                "width": 640,
+                "height": 640,
                 "center": true
             }
         ],

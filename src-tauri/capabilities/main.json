@@ -15,7 +15,9 @@
         "dialog:allow-save",
         "resources:default",
         "menu:default",
-        "tray:default"
+        "tray:default",
+        "webview:allow-internal-toggle-devtools",
+        "webview:default"
     ],
     "platforms": ["linux", "macOS", "windows", "android", "iOS"]
 }

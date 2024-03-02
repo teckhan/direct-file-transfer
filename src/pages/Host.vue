@@ -1,10 +1,12 @@
 <template>
-    <div class="flex flex-col m-auto sm:mt-32 sm:mb-4">
+    <div class="flex flex-col m-auto sm:mt-32 sm:mb-4 w-full">
         <div class="flex py-4 items-center">
-            <div class="ml-auto flex gap-2 items-center">
+            <div
+                class="grid sm:grid-flow-col gap-2 items-center w-full sm:ml-auto sm:w-auto"
+            >
                 <Button
-                    class="ml-auto"
                     :class="{ hidden: list.length === 0 }"
+                    class="order-2 sm:order-none"
                     variant="destructive"
                     size="lg"
                     :disabled="list.length === 0"
@@ -20,7 +22,7 @@
             </div>
         </div>
 
-        <FileHostingTable class="mx-auto w-full" :list="list" />
+        <FileHostingTable :list="list" />
 
         <!-- TODO:  tauri drag drop zone -->
     </div>
@@ -28,8 +30,9 @@
 
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
-import { ref } from "vue";
+import { ref, unref, onUnmounted } from "vue";
 
 import { FileViewModel } from "@/types/File";
 
@@ -39,16 +42,25 @@ import FileHostingTable from "@/components/organisms/FileHostingTable.vue";
 
 import { toast } from "vue-sonner";
 
-const list = ref<FileViewModel[]>([
-    {
-        id: "m5gr84i9",
-        fileName: "gxbank calc.js",
-    },
-    {
-        id: "3u1reuv4",
-        fileName: "han's cny 2024 ticket.pdf",
-    },
-]);
+const list = ref<FileViewModel[]>([]);
+const unlistenList: Awaited<ReturnType<typeof listen>>[] = [];
+listen("file-added", (event) => {
+    list.value = [
+        ...unref(list).filter(
+            (entry) =>
+                entry.id !== event.payload.id &&
+                entry.fileName !== event.payload.path,
+        ), // tanstack table not deeply reactive: https://github.com/TanStack/table/discussions/4455#discussioncomment-7811125
+        {
+            id: event.payload.id,
+            fileName: event.payload.path,
+        },
+    ];
+}).then((cb) => unlistenList.push(cb));
+listen("cleared-all", () => (list.value = [])).then((cb) =>
+    unlistenList.push(cb),
+);
+onUnmounted(() => unlistenList.forEach((unlisten) => unlisten()));
 
 const addFilesToHost = async () => {
     try {

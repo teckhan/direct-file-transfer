@@ -135,8 +135,7 @@ const columnHelper = createColumnHelper<FileViewModel>();
 const columns = [
     columnHelper.accessor("fileName", {
         header: () => h("div", null, "File Name"),
-        cell: ({ row }) =>
-            h("div", { class: "lowercase" }, row.getValue("fileName")),
+        cell: ({ row }) => h("div", null, row.getValue("fileName")),
     }),
 ];
 
