@@ -4,8 +4,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::signal::ctrl_c;
-use actix_web::{get, web, App, HttpServer, HttpRequest, HttpResponse, Responder, main};
+use actix_web::{get, post, web, App, HttpServer, HttpRequest, HttpResponse, Responder, main};
 use actix_files as fs;
+use actix_cors::Cors;
+use actix_multipart::form::{tempfile::TempFile,MultipartForm};
 use uuid::Uuid;
 use serde_json::json;
 use lazy_static::lazy_static;
@@ -13,6 +15,10 @@ use regex::Regex;
 use zip::write::FileOptions;
 use zip::ZipWriter;
 use local_ip_address::local_ip;
+
+struct AppData {
+	desktop_path: String
+}
 
 // #region file list states
 lazy_static! {
@@ -143,14 +149,42 @@ async fn download_all() -> HttpResponse {
         .append_header(("Content-Type", "application/zip"))
         .append_header(("Content-Disposition", "attachment; filename=\"files.zip\""))
         .body(web::Bytes::copy_from_slice(&cursor.into_inner()))
+
+    // TODO: steam?
+    // // HttpResponseBuilder::streaming expects a Stream<Item = Result<Bytes, E>>
+    // stream is some futures::Stream containing the bytes of the file you're making available for download
+    // let stream = stream.map_ok(actix_web::web::Bytes::from);
+    // let filename = "your_file.txt";
+
+    // HttpResponse::Ok()
+    //     .content_type(ContentType::plaintext())
+    //     .insert_header(ContentDisposition::attachment(filename))
+    //     .streaming(stream)
+}
+
+#[derive(Debug, MultipartForm)]
+struct UploadForm {
+    #[multipart(rename = "file")]
+    files: Vec<TempFile>,
+}
+
+#[post("/upload")]
+async fn upload(data: web::Data<AppData>,  MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
+    for f in form.files {
+        let path = format!("{}{}",data.desktop_path.to_string(), f.file_name.unwrap());
+        f.file.persist(path).unwrap();
+    }
+
+   HttpResponse::Ok()
 }
 // #endregion
 
 #[main]
-pub async fn start(resource_path: &str) -> std::io::Result<()> {
+pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<()> {
     let (tx, mut rx) = mpsc::channel(1); // Create a channel for shutdown signal
 
     let resource_path = std::sync::Arc::new(resource_path.to_owned());
+    let desktop_path = std::sync::Arc::new(desktop_path.to_owned());
 
     tokio::spawn(async move {
         if let Err(err) = ctrl_c().await {
@@ -161,13 +195,19 @@ pub async fn start(resource_path: &str) -> std::io::Result<()> {
 
     HttpServer::new(move || {
     	let resource_path = resource_path.clone();
+    	let desktop_path = desktop_path.clone();
+    	let cors = Cors::default().allow_any_method().allow_any_header().allow_any_origin().send_wildcard();
+
 	    App::new()
-        	.service(fs::Files::new("/", resource_path.clone().as_ref()).show_files_listing().index_file("index.html").use_last_modified(true))
+	        .app_data(web::Data::new(AppData { desktop_path: desktop_path.to_string() }))
+			.wrap(cors)
 	    	.service(get_ip)
 	    	.service(get_client_ip)
 	    	.service(list)
 	     	.service(download)
 	     	.service(download_all)
+	     	.service(upload)
+        	.service(fs::Files::new("/", resource_path.clone().as_ref()).show_files_listing().index_file("index.html").use_last_modified(true))
     })
     .bind(("0.0.0.0", 8080))? // TODO: tweak to 80
     .bind(("::1", 8080))?

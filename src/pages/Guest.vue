@@ -61,8 +61,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, unref, onMounted } from "vue";
 import { useFileDialog, useDropZone } from "@vueuse/core";
+import axios from "axios";
 
 import { FileViewModel } from "@/types/File";
 
@@ -72,6 +73,11 @@ import { Progress } from "@/components/ui/progress";
 import FileDownloadTable from "@/components/organisms/FileDownloadTable.vue";
 
 import { toast } from "vue-sonner";
+
+const ip = ref();
+onMounted(() => {
+    ip.value = new URL(window.location.href).origin;
+});
 
 // #region listing
 const list = ref<FileViewModel[]>([]);
@@ -88,12 +94,30 @@ const handleDownloadAll = () => {
 // #endregion
 
 // #region upload
-const uploadFiles = (files: File[]) => {
+const uploadFiles = async (files: File[]) => {
     if (!Array.isArray(files)) throw new Error("No files are selected.");
 
+    const formData = new FormData();
     files.forEach((file) => {
-        console.log("upload", file);
+        console.log("upload", unref(ip), file);
+        formData.append("file", file);
     });
+
+    const response = await axios
+        .post(`${"unref(ip)"}/upload`, formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        })
+        .catch((error) => error);
+
+    if (response.statusText !== "OK") {
+        toast.error(`Failed Upload!`, {
+            description: `Upload failed with status: ${response.status}; code: ${response.code}`,
+        });
+
+        return;
+    }
 
     if (files.length === 1) {
         toast.success("Successful Upload!", {
@@ -108,7 +132,7 @@ const uploadFiles = (files: File[]) => {
 
 const dropZoneRef = ref<HTMLElement>();
 const { isOverDropZone: doShowDragAndDrop } = useDropZone(dropZoneRef, {
-    onDrop: (files: File[] | null, event: DragEvent) => {
+    onDrop: async (files: File[] | null, event: DragEvent) => {
         const directoryPaths = Object.values(event.dataTransfer?.items ?? {})
             .map((item) => item.webkitGetAsEntry())
             .filter((item) => item?.isDirectory)
@@ -135,7 +159,7 @@ const { isOverDropZone: doShowDragAndDrop } = useDropZone(dropZoneRef, {
             return;
         }
 
-        uploadFiles(files);
+        await uploadFiles(files);
     },
 });
 onMounted(() => {
@@ -146,9 +170,9 @@ const { open: openFileDialog, onChange: onfileDialogFilesChange } =
     useFileDialog({
         multiple: true,
     });
-onfileDialogFilesChange((files: FileList) => {
+onfileDialogFilesChange(async (files: FileList) => {
     try {
-        uploadFiles([...files]);
+        await uploadFiles([...files]);
     } catch (error) {
         toast.error("Failed to upload files!", {
             // @ts-ignore

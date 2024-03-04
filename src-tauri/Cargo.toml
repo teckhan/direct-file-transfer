@@ -29,6 +29,8 @@ tauri-plugin-dialog = "2.0.0-beta.1"
 tauri-plugin-shell = "2.0.0-beta.1"
 tauri-plugin-fs = "2.0.0-beta.1"
 actix-files = "0.6.5"
+actix-multipart = "0.6.1"
+actix-cors = "0.7.0"
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!

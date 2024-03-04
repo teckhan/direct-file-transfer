@@ -32,9 +32,10 @@ pub fn run() {
         .setup(|app| {
         	// TODO: _up_ issue
       		let resource_path = app.path().resolve("_up_/dist", tauri::path::BaseDirectory::Resource).unwrap().display().to_string();
+      		let desktop_path = app.path().resolve("", tauri::path::BaseDirectory::Desktop).unwrap().display().to_string();
         	tauri::async_runtime::spawn(async move {
 				let server_handle = thread::spawn(move || {
-					api::start(&resource_path).unwrap();
+					api::start(&resource_path, &desktop_path).unwrap();
 				});
 
 				// Wait for the server thread to finish
