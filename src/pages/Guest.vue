@@ -1,4 +1,8 @@
 <template>
+    <!-- TODO:
+- splashscreen for guest (show drag fn)
+- splashscreen for host (show local ip - with tnc saying if under same network / public ip)
+-->
     <div class="grow flex flex-col">
         <Transition
             enter-from-class="scale-105 opacity-80"
@@ -51,7 +55,6 @@
                 @download="handleDownload"
             />
 
-            <!-- TODO:  tauri drag drop zone -->
             <Progress v-model="uploadProgress" />
         </div>
     </div>
@@ -87,9 +90,6 @@ const handleDownloadAll = () => {
 // #region upload
 const uploadFiles = (files: File[]) => {
     if (!Array.isArray(files)) throw new Error("No files are selected.");
-    // if (files.some((file) => file.type))
-    //     // TODO: type is not correcrt indicator
-    //     throw new Error("Cannot add directory!"); // TODO: show which name
 
     files.forEach((file) => {
         console.log("upload", file);
@@ -108,12 +108,35 @@ const uploadFiles = (files: File[]) => {
 
 const dropZoneRef = ref<HTMLElement>();
 const { isOverDropZone: doShowDragAndDrop } = useDropZone(dropZoneRef, {
-    onDrop: (files: File[] | null) => {
-        if (!files) return;
+    onDrop: (files: File[] | null, event: DragEvent) => {
+        const directoryPaths = Object.values(event.dataTransfer?.items ?? {})
+            .map((item) => item.webkitGetAsEntry())
+            .filter((item) => item?.isDirectory)
+            .map((item) => item.name);
+
+        if (directoryPaths.length > 0) {
+            toast.error(
+                directoryPaths.length
+                    ? "Cannot add directory!"
+                    : "Cannot add directories",
+                {
+                    // @ts-ignore
+                    description: directoryPaths.join(", "),
+                },
+            );
+            return;
+        }
+
+        if (!files) {
+            toast.error("No files detected!", {
+                // @ts-ignore
+                description: error,
+            });
+            return;
+        }
+
         uploadFiles(files);
     },
-
-    // TODO: allow multiple drag
 });
 onMounted(() => {
     dropZoneRef.value = document.body;
@@ -125,7 +148,6 @@ const { open: openFileDialog, onChange: onfileDialogFilesChange } =
     });
 onfileDialogFilesChange((files: FileList) => {
     try {
-        console.log([...files]);
         uploadFiles([...files]);
     } catch (error) {
         toast.error("Failed to upload files!", {

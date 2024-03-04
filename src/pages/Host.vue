@@ -132,10 +132,15 @@ listen("tauri://file-drop", async (event) => {
     ).filter((v) => v);
 
     if (directoryPaths.length > 0) {
-        toast.error("Cannot add directory!", {
-            // @ts-ignore
-            description: directoryPaths.join(", "),
-        });
+        toast.error(
+            directoryPaths.length
+                ? "Cannot add directory!"
+                : "Cannot add directories",
+            {
+                // @ts-ignore
+                description: directoryPaths.join(", "),
+            },
+        );
         return;
     }
 
