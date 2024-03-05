@@ -55,6 +55,7 @@
                 @download="handleDownload"
             />
 
+            <!-- TODO: progress -->
             <Progress v-model="uploadProgress" />
         </div>
     </div>

@@ -1,5 +1,7 @@
 <template>
     <div class="grow flex flex-col">
+        {{ publicIp }}
+        {{ localIp }}
         <Transition
             enter-from-class="scale-105 opacity-80"
             leave-active-class="opacity-0"
@@ -53,7 +55,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { readDir } from "@tauri-apps/plugin-fs";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
-import { ref, unref, onUnmounted } from "vue";
+import { ref, unref, onBeforeMount, onUnmounted } from "vue";
+import axios from "axios";
 
 import { FileViewModel } from "@/types/File";
 
@@ -62,6 +65,30 @@ import { Button } from "@/components/ui/button";
 import FileHostingTable from "@/components/organisms/FileHostingTable.vue";
 
 import { toast } from "vue-sonner";
+
+// #region ip
+const publicIp = ref<string | undefined>();
+const localIp = ref<string | undefined>();
+const PORT = 8080;
+const getFullAddress = (domain: string) =>
+    `http://${domain}${PORT ? `:${PORT}` : ""}`;
+onBeforeMount(async () => {
+    const { status, code, data } = await axios
+        .get("https://api.ipify.org?format=json")
+        .catch((error) => error);
+
+    if (!(status >= 200 && status < 300)) {
+        toast.error(`Failed to get file list!`, {
+            description: `Get file list with status: ${status}; code: ${code}`,
+        });
+
+        return;
+    }
+
+    publicIp.value = getFullAddress(data.ip);
+    localIp.value = getFullAddress(await invoke("get_local_ip"));
+});
+// #endregion
 
 const unlistenList: Awaited<ReturnType<typeof listen>>[] = [];
 

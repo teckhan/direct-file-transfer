@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, Arc};
 use tokio::sync::mpsc;
 use tokio::signal::ctrl_c;
-use actix_web::{get, post, web, App, HttpServer, HttpRequest, HttpResponse, Responder, main};
+use actix_web::{get, post, web, App, HttpServer, HttpResponse, Responder, main};
 use actix_files as fs;
 use actix_cors::Cors;
 use actix_multipart::form::{tempfile::TempFile,MultipartForm};
@@ -14,7 +14,6 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use zip::write::FileOptions;
 use zip::ZipWriter;
-use local_ip_address::local_ip;
 
 mod broadcast;
 use self::broadcast::{Broadcaster, Message};
@@ -69,22 +68,6 @@ pub fn clear_files() {
 // #endregion
 
 // #region endpoints
-#[get("/ip")]
-async fn get_ip() -> impl Responder {
-   	let my_local_ip = local_ip().unwrap();
-    format!("{}", my_local_ip)
-}
-
-#[get("/client-ip")] // TODO: remove
-async fn get_client_ip(req: HttpRequest) -> impl Responder {
-    let remote_addr = req.connection_info().realip_remote_addr().map(|addr| addr.to_string());
-
-    match remote_addr {
-        Some(addr) => HttpResponse::Ok().body(addr),
-        None => HttpResponse::Ok().body("Unavailable"), // Informative message when IP cannot be retrieved
-    }
-}
-
 #[get("/list")]
 async fn list() -> impl Responder {
   let file_list = FILE_LIST.lock().unwrap(); // Acquire lock for safety
@@ -221,15 +204,6 @@ async fn event_stream() -> impl Responder {
 	BROADCASTER.lock().unwrap().new_client().await
 }
 
-// pub async fn broadcast_msg(
-//     broadcaster: web::Data<Broadcaster>,
-//     Path((msg,)): actix_web_lab::extract::Path<(String,)>,
-// ) -> impl Responder {
-//     broadcaster.broadcast(&msg).await;
-//     HttpResponse::Ok().body("msg sent")
-// }
-// #endregion
-
 #[main]
 pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<()> {
     let (tx, mut rx) = mpsc::channel(1); // Create a channel for shutdown signal
@@ -252,8 +226,6 @@ pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<(
 	    App::new()
 	        .app_data(web::Data::new(AppData { desktop_path: desktop_path.to_string() }))
 			.wrap(cors)
-	    	.service(get_ip)
-	    	.service(get_client_ip)
 	    	.service(list)
 	     	.service(download)
 	     	.service(download_all)
