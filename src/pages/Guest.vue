@@ -55,14 +55,13 @@
                 @download="handleDownload"
             />
 
-            <!-- TODO: progress -->
-            <Progress v-model="uploadProgress" />
+            <Progress v-if="isUploading" v-model="uploadPercentage" />
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, unref, watch, onMounted } from "vue";
+import { ref, unref, computed, watch, onMounted } from "vue";
 import { useFileDialog, useDropZone, useEventSource } from "@vueuse/core";
 import axios from "axios";
 
@@ -139,6 +138,20 @@ const handleDownloadAll = () => {
 // #endregion
 
 // #region upload
+const isUploading = ref(false);
+const uploadProgresses = ref<{ [id: string]: number }>({});
+const uploadPercentage = computed(() => {
+    const percentages = Object.values(unref(uploadProgresses)).filter(
+        (v) => v < 100,
+    );
+
+    if (!percentages.length) return 0;
+
+    return (
+        percentages.reduce((acc, percentage) => acc + percentage, 0) /
+        percentages.length
+    );
+});
 const uploadFiles = async (files: File[]) => {
     if (!Array.isArray(files)) throw new Error("No files are selected.");
 
@@ -147,13 +160,26 @@ const uploadFiles = async (files: File[]) => {
         formData.append("file", file);
     });
 
+    isUploading.value = true;
+    const id = `${Date.now()}`;
     const response = await axios
         .post(`${unref(ip)}/upload`, formData, {
             headers: {
                 "Content-Type": "multipart/form-data",
             },
+            onUploadProgress: (progressEvent) => {
+                uploadProgresses.value[id] = Math.round(
+                    progressEvent.progress * 100,
+                );
+            },
         })
         .catch((error) => error);
+    isUploading.value = false;
+    uploadProgresses.value = Object.fromEntries(
+        Object.entries(unref(uploadProgresses)).filter(
+            ([_id, _progress]) => _id !== id || _progress < 100,
+        ),
+    );
 
     if (response.statusText !== "OK") {
         toast.error(`Failed Upload!`, {
@@ -224,7 +250,5 @@ onfileDialogFilesChange(async (files: FileList) => {
         });
     }
 });
-
-const uploadProgress = ref(13);
 // #endregion
 </script>
