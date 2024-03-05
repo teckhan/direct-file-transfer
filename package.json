@@ -1,26 +1,43 @@
 {
-	"name": "local-file-transfer",
-	"version": "1.0.0",
-	"description": "",
-	"main": "./main.js",
-	"scripts": {
-		"start": "node src/index.js",
-		"dev": "electron .",
-		"build-mac": "electron-packager . LocalFileTransfer --overwrite --platform=darwin --arch=x64 --icon=src/assets/images/icon.icns --prune=true --out=release-builds",
-		"build-win": "electron-packager . LocalFileTransfer --overwrite --asar=true --platform=win32 --arch=ia32 --icon=src/assets/images/icon.ico --prune=true --out=release-builds --version-string.CompanyName=WtH --version-string.FileDescription=LocalFileTransfer --version-string.ProductName=\"LocalFileTransfer\"",
-		"build-linux": "electron-packager . LocalFileTransfer --overwrite --asar=true --platform=linux --arch=x64 --icon=src/assets/images/icon.png --prune=true --out=release-builds"
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+ssh://git@github.com/wth193/local-file-transfer.git"
-	},
-	"author": "Wong Teck Han",
-	"license": "ISC",
-	"bugs": {
-		"url": "https://github.com/wth193/local-file-transfer/issues"
-	},
-	"homepage": "https://github.com/wth193/local-file-transfer#readme",
-	"devDependencies": {
-		"electron": "^9.1.0"
-	}
+    "name": "direct-file-transfer",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "tauri": "tauri",
+        "build-ios": "tauri ios build",
+        "build-windows": "tauri build --target x86_64-pc-windows-msvc",
+        "compress-mac": "upx --ultra-brute \"src-tauri/target/release/bundle/macos/Direct File transfer.app/Contents/MacOS/Direct File transfer\""
+    },
+    "dependencies": {
+        "@tanstack/vue-table": "^8.13.2",
+        "@tauri-apps/api": "^2.0.0-beta.3",
+        "@tauri-apps/plugin-dialog": "^2.0.0-beta.1",
+        "@tauri-apps/plugin-fs": "^2.0.0-beta.1",
+        "@vueuse/core": "^10.9.0",
+        "axios": "^1.6.7",
+        "class-variance-authority": "^0.7.0",
+        "clsx": "^2.1.0",
+        "internal-ip": "^8.0.0",
+        "lucide-vue-next": "^0.344.0",
+        "radix-vue": "^1.4.9",
+        "tailwind-merge": "^2.2.1",
+        "tailwindcss-animate": "^1.0.7",
+        "vue": "^3.4.21",
+        "vue-sonner": "^1.0.4"
+    },
+    "devDependencies": {
+        "@tauri-apps/cli": "^2.0.0-beta.5",
+        "@types/node": "^20.11.24",
+        "@vitejs/plugin-vue": "^5.0.4",
+        "autoprefixer": "^10.4.17",
+        "tailwindcss": "^3.4.1",
+        "typescript": "^5.0.2",
+        "vite": "^5.0.0",
+        "vite-plugin-vue-devtools": "^7.0.15",
+        "vue-tsc": "^1.8.5"
+    }
 }

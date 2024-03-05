@@ -1,0 +1,37 @@
+{
+    "productName": "Direct File transfer",
+    "version": "1.0.0",
+    "identifier": "com.dft.dev",
+    "build": {
+        "beforeDevCommand": "yarn build && yarn dev",
+        "devUrl": "http://localhost:1420",
+        "beforeBuildCommand": "yarn build",
+        "frontendDist": "../dist"
+    },
+    "app": {
+        "withGlobalTauri": true,
+        "windows": [
+            {
+                "title": "",
+                "width": 640,
+                "height": 640,
+                "center": true
+            }
+        ],
+        "security": {
+            "csp": null
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "icon": [
+            "icons/32x32.png",
+            "icons/128x128.png",
+            "icons/128x128@2x.png",
+            "icons/icon.icns",
+            "icons/icon.ico"
+        ],
+        "resources": ["../dist/*"]
+    }
+}
