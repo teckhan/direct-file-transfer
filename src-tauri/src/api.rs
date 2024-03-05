@@ -236,8 +236,8 @@ pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<(
 			.service(event_stream)
         	.service(fs::Files::new("/", resource_path.clone().as_ref()).show_files_listing().index_file("index.html").use_last_modified(true))
     })
-    .bind(("0.0.0.0", 80))? // TODO: tweak to 80
-    .bind(("::1", 80))?
+    .bind(("0.0.0.0", 4321))?
+    .bind(("::1", 4321))?
     .run()
     .await?;
 

@@ -126,7 +126,7 @@ const copyToClipboard = (text: string) => {
 // #region ip
 const publicIp = ref<string | undefined>();
 const localIp = ref<string | undefined>();
-const PORT = 80;
+const PORT = 4321;
 const getFullAddress = (domain: string) =>
     `http://${domain}${PORT ? `:${PORT}` : ""}`;
 onBeforeMount(async () => {
