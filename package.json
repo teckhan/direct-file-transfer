@@ -8,7 +8,8 @@
         "build": "vite build",
         "preview": "vite preview",
         "tauri": "tauri",
-        "build-ios": "tauri ios build"
+        "build-ios": "tauri ios build",
+        "build-windows": "tauri build --target x86_64-pc-windows-msvc"
     },
     "dependencies": {
         "@tanstack/vue-table": "^8.13.2",
