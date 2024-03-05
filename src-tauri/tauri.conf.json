@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "identifier": "com.dft.dev",
     "build": {
-        "beforeDevCommand": "yarn dev",
+        "beforeDevCommand": "yarn build && yarn dev",
         "devUrl": "http://localhost:1420",
         "beforeBuildCommand": "yarn build",
         "frontendDist": "../dist"
