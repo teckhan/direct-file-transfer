@@ -61,8 +61,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, unref, onMounted } from "vue";
-import { useFileDialog, useDropZone } from "@vueuse/core";
+import { ref, unref, watch, onMounted } from "vue";
+import { useFileDialog, useDropZone, useEventSource } from "@vueuse/core";
 import axios from "axios";
 
 import { FileViewModel } from "@/types/File";
@@ -78,6 +78,16 @@ const ip = ref();
 onMounted(() => {
     ip.value = new URL(window.location.href).origin;
 });
+
+const { data } = useEventSource("/events");
+
+watch(
+    data,
+    (v) => {
+        console.log("sse", v);
+    },
+    { immediate: true },
+);
 
 // #region listing
 const list = ref<FileViewModel[]>([]);
@@ -99,12 +109,11 @@ const uploadFiles = async (files: File[]) => {
 
     const formData = new FormData();
     files.forEach((file) => {
-        console.log("upload", unref(ip), file);
         formData.append("file", file);
     });
 
     const response = await axios
-        .post(`${"unref(ip)"}/upload`, formData, {
+        .post(`${unref(ip)}/upload`, formData, {
             headers: {
                 "Content-Type": "multipart/form-data",
             },

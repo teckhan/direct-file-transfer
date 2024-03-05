@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Mutex, Arc};
 use tokio::sync::mpsc;
 use tokio::signal::ctrl_c;
 use actix_web::{get, post, web, App, HttpServer, HttpRequest, HttpResponse, Responder, main};
@@ -16,6 +16,9 @@ use zip::write::FileOptions;
 use zip::ZipWriter;
 use local_ip_address::local_ip;
 
+mod broadcast;
+use self::broadcast::{Broadcaster, Message};
+
 struct AppData {
 	desktop_path: String
 }
@@ -23,18 +26,8 @@ struct AppData {
 // #region file list states
 lazy_static! {
     static ref FILE_LIST: Mutex<HashMap<String, Uuid>> = Mutex::new(HashMap::new());
+    static ref BROADCASTER: Mutex<Arc<Broadcaster>> = Mutex::new(Broadcaster::create());
 }
-pub fn add_file(path: &str) -> Uuid {
-    let mut file_list = FILE_LIST.lock().unwrap();
-    let id = Uuid::new_v4();
-    file_list.entry(String::from(path)).or_insert(id);
-    id
-}
-pub fn clear_files() {
-	FILE_LIST.lock().unwrap().clear();
-}
-// #endregion
-
 fn extract_filename(path: &str) -> String {
     let re = Regex::new(r"/([^/]+)$").unwrap();
     if let Some(captures) = re.captures(path) {
@@ -44,6 +37,31 @@ fn extract_filename(path: &str) -> String {
     }
     path.to_string()
 }
+
+pub fn add_file(path: &str) -> Uuid {
+    let mut file_list = FILE_LIST.lock().unwrap();
+    let id = Uuid::new_v4();
+    file_list.entry(String::from(path)).or_insert(id);
+
+    BROADCASTER.lock().unwrap().broadcast_sync(Message {
+	    action: "file-added".to_string(),
+		payload: json!({
+	        "id": id.to_string(),
+	        "file_name": extract_filename(path)
+	    }).to_string()
+    });
+
+    id
+}
+pub fn clear_files() {
+	FILE_LIST.lock().unwrap().clear();
+
+	BROADCASTER.lock().unwrap().broadcast_sync(Message {
+		action: "cleared_all_files".to_string(),
+		payload: "".to_string()
+	});
+}
+// #endregion
 
 // #region endpoints
 #[get("/ip")]
@@ -177,14 +195,27 @@ async fn upload(data: web::Data<AppData>,  MultipartForm(form): MultipartForm<Up
 
    HttpResponse::Ok()
 }
+
+#[get("/events")]
+async fn event_stream() -> impl Responder {
+	BROADCASTER.lock().unwrap().new_client().await
+}
+
+// pub async fn broadcast_msg(
+//     broadcaster: web::Data<Broadcaster>,
+//     Path((msg,)): actix_web_lab::extract::Path<(String,)>,
+// ) -> impl Responder {
+//     broadcaster.broadcast(&msg).await;
+//     HttpResponse::Ok().body("msg sent")
+// }
 // #endregion
 
 #[main]
 pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<()> {
     let (tx, mut rx) = mpsc::channel(1); // Create a channel for shutdown signal
 
-    let resource_path = std::sync::Arc::new(resource_path.to_owned());
-    let desktop_path = std::sync::Arc::new(desktop_path.to_owned());
+    let resource_path = Arc::new(resource_path.to_owned());
+    let desktop_path = Arc::new(desktop_path.to_owned());
 
     tokio::spawn(async move {
         if let Err(err) = ctrl_c().await {
@@ -207,6 +238,7 @@ pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<(
 	     	.service(download)
 	     	.service(download_all)
 	     	.service(upload)
+			.service(event_stream)
         	.service(fs::Files::new("/", resource_path.clone().as_ref()).show_files_listing().index_file("index.html").use_last_modified(true))
     })
     .bind(("0.0.0.0", 8080))? // TODO: tweak to 80
