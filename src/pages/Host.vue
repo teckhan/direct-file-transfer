@@ -92,7 +92,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { readDir } from "@tauri-apps/plugin-fs";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
-import { ref, unref, onBeforeMount, onUnmounted } from "vue";
+import { ref, unref, watch, onBeforeMount, onUnmounted } from "vue";
+import { useEventSource } from "@vueuse/core";
 import axios from "axios";
 
 import { FileViewModel } from "@/types/File";
@@ -133,6 +134,11 @@ onBeforeMount(async () => {
     localIp.value = getFullAddress(await invoke("get_local_ip"));
 });
 // #endregion
+
+const { data } = useEventSource(`${getFullAddress("localhost")}/events`);
+watch(data, (v) => {
+    console.log(v);
+});
 
 const unlistenList: Awaited<ReturnType<typeof listen>>[] = [];
 
