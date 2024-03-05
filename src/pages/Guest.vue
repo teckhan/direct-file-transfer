@@ -80,26 +80,60 @@ onMounted(() => {
 });
 
 const { data } = useEventSource("/events");
-
-watch(
-    data,
-    (v) => {
-        console.log("sse", v);
-    },
-    { immediate: true },
-);
-
 // #region listing
 const list = ref<FileViewModel[]>([]);
+onMounted(async () => {
+    const { statusText, status, code, data } = await axios
+        .get(`${unref(ip)}/list`)
+        .catch((error) => error);
+
+    if (statusText !== "OK") {
+        toast.error(`Failed to get file list!`, {
+            description: `Get file list with status: ${status}; code: ${code}`,
+        });
+
+        return;
+    }
+
+    list.value = Object.entries(data).map(([fileName, id]) => ({
+        id,
+        fileName,
+    }));
+});
+watch(data, (v) => {
+    try {
+        const { action, payload } = JSON.parse(v);
+
+        switch (action) {
+            case "file-added": {
+                const { id, file_name } = JSON.parse(payload);
+                if (unref(list).find((v) => v.id === id)) return;
+
+                list.value = [...unref(list), { id, fileName: file_name }];
+
+                break;
+            }
+            case "all-files-cleared": {
+                list.value = [];
+                break;
+            }
+        }
+    } catch (err) {}
+});
+
 // #endregion
 
 // #region download
 const handleDownload = (id: string) => {
-    console.log("download", id);
+    const link = document.createElement("a");
+    link.href = `${unref(ip)}/dl/${id}`;
+    link.click();
 };
 
 const handleDownloadAll = () => {
-    console.log("download all");
+    const link = document.createElement("a");
+    link.href = `${unref(ip)}/dl`;
+    link.click();
 };
 // #endregion
 

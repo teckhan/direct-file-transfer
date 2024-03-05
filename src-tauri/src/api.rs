@@ -40,8 +40,13 @@ fn extract_filename(path: &str) -> String {
 
 pub fn add_file(path: &str) -> Uuid {
     let mut file_list = FILE_LIST.lock().unwrap();
-    let id = Uuid::new_v4();
+    let mut id = Uuid::new_v4();
     file_list.entry(String::from(path)).or_insert(id);
+
+    id = match file_list.iter().find_map(|(p, u)| if *p == path { Some(u) } else { None }) {
+        Some(u) => *u,
+        None => id
+    };
 
     BROADCASTER.lock().unwrap().broadcast_sync(Message {
 	    action: "file-added".to_string(),
@@ -57,7 +62,7 @@ pub fn clear_files() {
 	FILE_LIST.lock().unwrap().clear();
 
 	BROADCASTER.lock().unwrap().broadcast_sync(Message {
-		action: "cleared_all_files".to_string(),
+		action: "all-files-cleared".to_string(),
 		payload: "".to_string()
 	});
 }
@@ -133,51 +138,66 @@ async fn download(id: web::Path<String>) -> impl Responder {
 }
 
 #[get("/dl")]
-async fn download_all() -> HttpResponse {
+async fn download_all() -> impl Responder {
 	let file_list = FILE_LIST.lock().unwrap();
-    let mut zip_buffer = Vec::new();  // Separate buffer for writing zip data
-    {
-        let mut zip = ZipWriter::new(Cursor::new(&mut zip_buffer));
 
-        let options = FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+	if file_list.len() == 1 {
+        let (path, _) = file_list.iter().next().unwrap();
+        let mut file = match File::open(path) {
+            Ok(f) => f,
+            Err(_) => return HttpResponse::InternalServerError().body("Error opening file"),
+        };
 
-        for (path, _) in file_list.iter() {
-            let filename = std::path::Path::new(path).file_name().unwrap().to_string_lossy();
-
-            if let Ok(mut file) = File::open(path) {
-                let mut contents = Vec::new();
-                if let Err(_) = file.read_to_end(&mut contents) {
-                    continue;
-                }
-                if let Err(_) = zip.start_file(filename.clone(), options) {
-                    continue;
-                }
-                if let Err(_) = zip.write_all(&contents) {
-                    continue;
-                }
-            }
+        let mut contents = Vec::new();
+        if let Err(_) = file.read_to_end(&mut contents) {
+            return HttpResponse::InternalServerError().body("Error reading file");
         }
-    } // zip_writer goes out of scope here, allowing zip_buffer to be borrowed again
 
-    // Reset the cursor to the beginning
-    let mut cursor = Cursor::new(zip_buffer);
-    cursor.seek(SeekFrom::Start(0)).unwrap();
+        // Get the original filename from the path
+        let filename = match std::path::Path::new(&path).file_name() {
+            Some(name) => name.to_string_lossy().to_string(),
+            None => "file".to_string(),
+        };
 
-    HttpResponse::Ok()
-        .append_header(("Content-Type", "application/zip"))
-        .append_header(("Content-Disposition", "attachment; filename=\"files.zip\""))
-        .body(web::Bytes::copy_from_slice(&cursor.into_inner()))
+        // Create a response with the file contents
+        return HttpResponse::Ok()
+            .append_header(("Content-Type", "application/octet-stream"))
+            .append_header(("Content-Disposition", format!("attachment; filename=\"{}\"", filename)))
+            .body(web::Bytes::from(contents));
+    } else {
+	    let mut zip_buffer = Vec::new();  // Separate buffer for writing zip data
+	    {
+	        let mut zip = ZipWriter::new(Cursor::new(&mut zip_buffer));
 
-    // TODO: steam?
-    // // HttpResponseBuilder::streaming expects a Stream<Item = Result<Bytes, E>>
-    // stream is some futures::Stream containing the bytes of the file you're making available for download
-    // let stream = stream.map_ok(actix_web::web::Bytes::from);
-    // let filename = "your_file.txt";
+	        let options = FileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
-    // HttpResponse::Ok()
-    //     .content_type(ContentType::plaintext())
-    //     .insert_header(ContentDisposition::attachment(filename))
-    //     .streaming(stream)
+	        for (path, _) in file_list.iter() {
+	            let filename = std::path::Path::new(path).file_name().unwrap().to_string_lossy();
+
+	            if let Ok(mut file) = File::open(path) {
+	                let mut contents = Vec::new();
+	                if let Err(_) = file.read_to_end(&mut contents) {
+	                    continue;
+	                }
+	                if let Err(_) = zip.start_file(filename.clone(), options) {
+	                    continue;
+	                }
+	                if let Err(_) = zip.write_all(&contents) {
+	                    continue;
+	                }
+	            }
+	        }
+	    } // zip_writer goes out of scope here, allowing zip_buffer to be borrowed again
+
+	    // Reset the cursor to the beginning
+	    let mut cursor = Cursor::new(zip_buffer);
+	    cursor.seek(SeekFrom::Start(0)).unwrap();
+
+	    return HttpResponse::Ok()
+	        .append_header(("Content-Type", "application/zip"))
+	        .append_header(("Content-Disposition", "attachment; filename=\"files.zip\""))
+	        .body(web::Bytes::copy_from_slice(&cursor.into_inner()))
+    }
 }
 
 #[derive(Debug, MultipartForm)]
