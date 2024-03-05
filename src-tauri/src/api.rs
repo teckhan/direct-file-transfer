@@ -7,7 +7,7 @@ use tokio::signal::ctrl_c;
 use actix_web::{get, post, web, App, HttpServer, HttpResponse, Responder, main};
 use actix_files as fs;
 use actix_cors::Cors;
-use actix_multipart::form::{tempfile::TempFile,MultipartForm};
+use actix_multipart::form::{tempfile::TempFile,MultipartForm, MultipartFormConfig};
 use uuid::Uuid;
 use serde_json::json;
 use lazy_static::lazy_static;
@@ -224,6 +224,9 @@ pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<(
     	let cors = Cors::default().allow_any_method().allow_any_header().allow_any_origin().send_wildcard();
 
 	    App::new()
+			.app_data(MultipartFormConfig::default()
+            	.total_limit(100 * 1024 * 1024 * 1024) // 100GB: https://docs.rs/actix-multipart/latest/actix_multipart/form/struct.MultipartFormConfig.html
+         	)
 	        .app_data(web::Data::new(AppData { desktop_path: desktop_path.to_string() }))
 			.wrap(cors)
 	    	.service(list)

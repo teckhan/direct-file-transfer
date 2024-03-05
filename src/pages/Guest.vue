@@ -3,8 +3,6 @@
 - splashscreen for guest (show drag fn)
 - splashscreen for host (show local ip - with tnc saying if under same network / public ip)
 -->
-
-    <!-- TODO: upload big file bug -->
     <div class="grow flex flex-col">
         <Transition
             enter-from-class="scale-105 opacity-80"
