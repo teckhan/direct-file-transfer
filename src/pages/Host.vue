@@ -35,7 +35,11 @@
                     />
                 </div>
                 <div>
-                    <Button variant="secondary" size="icon">
+                    <Button
+                        variant="secondary"
+                        size="icon"
+                        @click="copyToClipboard(publicIp)"
+                    >
                         <ClipboardIcon className="h-4 w-4" />
                     </Button>
                 </div>
@@ -52,7 +56,7 @@
                     />
                 </div>
                 <div>
-                    <Button size="icon">
+                    <Button size="icon" @click="copyToClipboard(localIp)">
                         <ClipboardIcon className="h-4 w-4" />
                     </Button>
                 </div>
@@ -110,6 +114,14 @@ import { Label } from "@/components/ui/label";
 import FileHostingTable from "@/components/organisms/FileHostingTable.vue";
 
 import { toast } from "vue-sonner";
+
+const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+
+    toast.success("Successful Copy!", {
+        description: `"${text}" is successfully copied to clipboard.`,
+    });
+};
 
 // #region ip
 const publicIp = ref<string | undefined>();
