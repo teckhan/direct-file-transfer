@@ -3,14 +3,39 @@
 - splashscreen for guest (show drag fn)
 - splashscreen for host (show local ip - with tnc saying if under same network / public ip)
 -->
+
+    <!-- TODO: upload big file bug -->
     <div class="grow flex flex-col">
         <Transition
             enter-from-class="scale-105 opacity-80"
             leave-active-class="opacity-0"
         >
             <section
+                v-if="isUploading"
+                class="select-none fixed inset-0 z-10 flex flex-col bg-background/80 transition ease-in"
+            >
+                <div
+                    class="container p-8 grow flex flex-col pointer-events-none"
+                >
+                    <div class="m-auto space-y-8 w-full text-center">
+                        <h1
+                            className="text-4xl font-extrabold tracking-tight lg:text-5xl"
+                        >
+                            Uploading...
+                        </h1>
+                        <Progress v-model="uploadPercentage" />
+                    </div>
+                </div>
+            </section>
+        </Transition>
+
+        <Transition
+            enter-from-class="scale-105 opacity-80"
+            leave-active-class="opacity-0"
+        >
+            <section
                 v-show="doShowDragAndDrop"
-                class="cursor-grabbing select-none fixed inset-0 z-10 flex flex-col bg-black transition ease-in"
+                class="cursor-grabbing select-none fixed inset-0 z-10 flex flex-col bg-background transition ease-in"
             >
                 <div class="p-8 grow flex flex-col pointer-events-none">
                     <div
@@ -54,8 +79,6 @@
                 :list="list"
                 @download="handleDownload"
             />
-
-            <Progress v-if="isUploading" v-model="uploadPercentage" />
         </div>
     </div>
 </template>
@@ -80,6 +103,7 @@ onMounted(() => {
 });
 
 const { data } = useEventSource("/events");
+
 // #region listing
 const list = ref<FileViewModel[]>([]);
 onMounted(async () => {

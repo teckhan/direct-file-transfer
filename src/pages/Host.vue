@@ -6,11 +6,11 @@
         >
             <section
                 v-show="doShowDragAndDrop"
-                class="cursor-grabbing select-none fixed inset-0 z-10 flex flex-col bg-black transition ease-in"
+                class="cursor-grabbing select-none fixed inset-0 z-10 flex flex-col bg-background transition ease-in"
             >
                 <div class="p-8 grow flex flex-col pointer-events-none">
                     <div
-                        class="grow flex flex-col p-4 border-4 border-white border-dashed rounded-lg"
+                        class="grow flex flex-col p-4 border-4 border-foreground border-dashed rounded-lg"
                     >
                         <UploadIcon
                             class="animate-[appear-from-inside_300ms_150ms_ease-in-out_backwards] m-auto w-full h-full max-w-20"
