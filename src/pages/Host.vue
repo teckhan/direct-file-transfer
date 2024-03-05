@@ -1,7 +1,5 @@
 <template>
     <div class="grow flex flex-col">
-        {{ publicIp }}
-        {{ localIp }}
         <Transition
             enter-from-class="scale-105 opacity-80"
             leave-active-class="opacity-0"
@@ -21,6 +19,45 @@
                 </div>
             </section>
         </Transition>
+
+        <div
+            class="sticky top-[env(safe-area-inset-top,0)] py-8 flex space-x-5 bg-[hsl(var(--background))]"
+        >
+            <div class="flex w-full items-end gap-2.5">
+                <div class="grid gap-2.5 w-full gap-1.5">
+                    <Label for="publicIp">Public Ip</Label>
+                    <Input
+                        id="publicIp"
+                        type="text"
+                        placeholder="Public Ip"
+                        :value="publicIp"
+                        readonly
+                    />
+                </div>
+                <div>
+                    <Button variant="secondary" size="icon">
+                        <ClipboardIcon className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+            <div class="flex w-full items-end gap-2.5">
+                <div class="grid gap-2.5 w-full gap-1.5">
+                    <Label for="localIp">Local Ip</Label>
+                    <Input
+                        id="localIp"
+                        type="text"
+                        placeholder="Local Ip"
+                        :value="localIp"
+                        readonly
+                    />
+                </div>
+                <div>
+                    <Button size="icon">
+                        <ClipboardIcon className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+        </div>
 
         <div class="flex flex-col m-auto sm:mt-32 sm:mb-4 w-full">
             <div class="flex py-4 items-center">
@@ -60,8 +97,15 @@ import axios from "axios";
 
 import { FileViewModel } from "@/types/File";
 
-import { PlusSquareIcon, Trash2Icon, UploadIcon } from "lucide-vue-next";
+import {
+    PlusSquareIcon,
+    Trash2Icon,
+    UploadIcon,
+    ClipboardIcon,
+} from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import FileHostingTable from "@/components/organisms/FileHostingTable.vue";
 
 import { toast } from "vue-sonner";
