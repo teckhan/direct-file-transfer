@@ -98,7 +98,6 @@ import { readDir } from "@tauri-apps/plugin-fs";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ref, unref, watch, onBeforeMount, onUnmounted } from "vue";
 import { useEventSource } from "@vueuse/core";
-import axios from "axios";
 
 import { FileViewModel } from "@/types/File";
 
@@ -130,19 +129,7 @@ const PORT = 8080;
 const getFullAddress = (domain: string) =>
     `http://${domain}${PORT ? `:${PORT}` : ""}`;
 onBeforeMount(async () => {
-    const { status, code, data } = await axios
-        .get("https://api.ipify.org?format=json")
-        .catch((error) => error);
-
-    if (!(status >= 200 && status < 300)) {
-        toast.error(`Failed to get file list!`, {
-            description: `Get file list with status: ${status}; code: ${code}`,
-        });
-
-        return;
-    }
-
-    publicIp.value = getFullAddress(data.ip);
+    publicIp.value = getFullAddress(await invoke("get_host_public_up"));
     localIp.value = getFullAddress(await invoke("get_local_ip"));
 });
 // #endregion

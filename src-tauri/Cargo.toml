@@ -33,6 +33,7 @@ actix-cors = "0.7.0"
 actix-web-lab = "0.20.2"
 parking_lot = "0.12.1"
 tokio-stream = "0.1.14"
+public-ip = "0.2.2"
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
