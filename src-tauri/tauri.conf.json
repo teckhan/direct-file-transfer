@@ -1,6 +1,6 @@
 {
     "productName": "Direct File Transfer",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "identifier": "com.dft.dev",
     "build": {
         "beforeDevCommand": "yarn build && yarn dev",

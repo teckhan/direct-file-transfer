@@ -1258,7 +1258,7 @@ dependencies = [
 
 [[package]]
 name = "direct-file-transfer"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "actix-cors",
  "actix-files",
