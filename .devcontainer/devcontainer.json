@@ -1,27 +1,31 @@
 {
-    "name": "direct-file-transfer",
-    "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
-    "features": {
+	"name": "direct-file-transfer",
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+	"features": {
         // https://v2.tauri.app/start/prerequisites/#linux
         "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-            "packages": "libwebkit2gtk-4.1-dev,libgtk-3-dev,libayatana-appindicator3-dev,librsvg2-dev,libxdo-dev,libssl-dev,build-essential,pkg-config,curl,wget,file,patchelf"
-        },
-        "ghcr.io/devcontainers/features/rust:1": {},
-        "ghcr.io/devcontainers/features/node:2.1.0": {
-            "version": "lts"
-        }
-    },
-    // Share the host network stack — container ports are reachable on the host without explicit forwarding
-    "runArgs": ["--network=host"],
-    "postCreateCommand": "yarn install",
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "tauri-apps.tauri-vscode",
-                "rust-lang.rust-analyzer",
-                "Vue.volar",
-                "bradlc.vscode-tailwindcss"
-            ]
-        }
-    }
+			"packages": "libwebkit2gtk-4.1-dev,libgtk-3-dev,libayatana-appindicator3-dev,librsvg2-dev,libxdo-dev,file,patchelf,pkg-config"
+		},
+		"ghcr.io/devcontainers/features/rust:1": {},
+		"ghcr.io/devcontainers/features/node:2.1.0": {}
+		
+	},
+	"postCreateCommand": "yarn install",
+	"mounts": [
+		"source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind",
+        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind",
+        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind",
+        "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind"
+	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"tauri-apps.tauri-vscode",
+				"rust-lang.rust-analyzer",
+				"Vue.volar",
+				"bradlc.vscode-tailwindcss",
+                "openai.chatgpt"
+			]
+		}
+	}
 }
