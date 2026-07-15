@@ -19,7 +19,7 @@ mod broadcast;
 use self::broadcast::{Broadcaster, Message};
 
 struct AppData {
-	desktop_path: String
+	save_dir: String
 }
 
 // #region file list states
@@ -192,7 +192,12 @@ struct UploadForm {
 #[post("/upload")]
 async fn upload(data: web::Data<AppData>,  MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
     for f in form.files {
-        let path = format!("{}{}",data.desktop_path.to_string(), f.file_name.unwrap());
+        // keep only the final path component so a crafted name can't escape the save dir
+        let file_name = f.file_name.as_deref()
+            .and_then(|name| std::path::Path::new(name).file_name())
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+        let path = std::path::Path::new(&data.save_dir).join(file_name);
         f.file.persist(path).unwrap();
     }
 
@@ -205,11 +210,11 @@ async fn event_stream() -> impl Responder {
 }
 
 #[main]
-pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<()> {
+pub async fn start(resource_path: &str, save_dir: &str) -> std::io::Result<()> {
     let (tx, mut rx) = mpsc::channel(1); // Create a channel for shutdown signal
 
     let resource_path = Arc::new(resource_path.to_owned());
-    let desktop_path = Arc::new(desktop_path.to_owned());
+    let save_dir = Arc::new(save_dir.to_owned());
 
     tokio::spawn(async move {
         if let Err(err) = ctrl_c().await {
@@ -220,14 +225,14 @@ pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<(
 
     HttpServer::new(move || {
     	let resource_path = resource_path.clone();
-    	let desktop_path = desktop_path.clone();
+    	let save_dir = save_dir.clone();
     	let cors = Cors::default().allow_any_method().allow_any_header().allow_any_origin().send_wildcard();
 
 	    App::new()
 			.app_data(MultipartFormConfig::default()
             	.total_limit(100 * 1024 * 1024 * 1024) // 100GB: https://docs.rs/actix-multipart/latest/actix_multipart/form/struct.MultipartFormConfig.html
          	)
-	        .app_data(web::Data::new(AppData { desktop_path: desktop_path.to_string() }))
+	        .app_data(web::Data::new(AppData { save_dir: save_dir.to_string() }))
 			.wrap(cors)
 	    	.service(list)
 	     	.service(download)

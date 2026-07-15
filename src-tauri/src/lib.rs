@@ -33,6 +33,28 @@ async fn get_host_public_up() -> std::net::IpAddr {
 	public_ip::addr().await.unwrap()
 }
 
+// Where received files are saved. Desktop is preferred, but it doesn't exist on
+// every platform (mobile, headless Linux), so fall back to the first directory
+// that actually exists: Desktop -> Downloads -> Documents -> app data.
+fn resolve_save_dir(app: &tauri::App) -> std::path::PathBuf {
+	let path = app.path();
+	let candidates = [
+		path.desktop_dir(),
+		path.download_dir(),
+		path.document_dir(),
+		path.app_data_dir(),
+	];
+	for dir in candidates.into_iter().flatten() {
+		if dir.is_dir() {
+			return dir;
+		}
+	}
+
+	let fallback = app.path().app_data_dir().expect("no writable save directory available");
+	std::fs::create_dir_all(&fallback).expect("failed to create save directory");
+	fallback
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
 	tauri::Builder::default()
@@ -42,10 +64,10 @@ pub fn run() {
         .setup(|app| {
         	// TODO: _up_ issue
       		let resource_path = app.path().resolve("_up_/dist", tauri::path::BaseDirectory::Resource).unwrap().display().to_string();
-      		let desktop_path = app.path().resolve("", tauri::path::BaseDirectory::Desktop).unwrap().display().to_string();
+      		let save_dir = resolve_save_dir(app).display().to_string();
         	tauri::async_runtime::spawn(async move {
 				let server_handle = std::thread::spawn(move || {
-					api::start(&resource_path, &desktop_path).unwrap();
+					api::start(&resource_path, &save_dir).unwrap();
 				});
 
 				// Wait for the server thread to finish
