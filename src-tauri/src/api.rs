@@ -1,185 +1,240 @@
-use std::fs::File;
-use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::collections::HashMap;
-use std::sync::{Mutex, Arc};
-use tokio::sync::mpsc;
-use tokio::signal::ctrl_c;
-use actix_web::{get, post, web, App, HttpServer, HttpResponse, Responder, main};
-use actix_files as fs;
+use std::io::{Seek, SeekFrom};
+use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
+
 use actix_cors::Cors;
-use actix_multipart::form::{tempfile::TempFile,MultipartForm, MultipartFormConfig};
-use uuid::Uuid;
+use actix_files::NamedFile;
+use actix_multipart::form::{tempfile::TempFile, MultipartForm, MultipartFormConfig};
+use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
+use actix_web::http::header::{ContentDisposition, DispositionParam, DispositionType};
+use actix_web::{get, main, post, web, App, HttpResponse, HttpServer, Responder};
+use serde::Serialize;
 use serde_json::json;
-use lazy_static::lazy_static;
-use regex::Regex;
-use zip::write::FileOptions;
+use tauri::Emitter;
+use uuid::Uuid;
+use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
 mod broadcast;
 use self::broadcast::{Broadcaster, Message};
 
-struct AppData {
-	desktop_path: String
+#[derive(Clone, Serialize)]
+pub struct SharedFile {
+    pub id: String,
+    pub file_name: String,
+    pub size: u64,
+    #[serde(skip)]
+    pub path: PathBuf,
+}
+
+static FILE_LIST: LazyLock<Mutex<Vec<SharedFile>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+static SAVE_DIR: LazyLock<Mutex<PathBuf>> = LazyLock::new(|| Mutex::new(PathBuf::new()));
+static BROADCASTER: LazyLock<std::sync::Arc<Broadcaster>> = LazyLock::new(Broadcaster::create);
+
+fn display_name(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.display().to_string())
+}
+
+fn file_size(path: &Path) -> u64 {
+    std::fs::metadata(path).map(|meta| meta.len()).unwrap_or(0)
+}
+
+pub fn set_save_dir(dir: PathBuf) {
+    *SAVE_DIR.lock().unwrap() = dir;
+}
+
+pub fn save_dir() -> PathBuf {
+    SAVE_DIR.lock().unwrap().clone()
 }
 
 // #region file list states
-lazy_static! {
-    static ref FILE_LIST: Mutex<HashMap<String, Uuid>> = Mutex::new(HashMap::new());
-    static ref BROADCASTER: Mutex<Arc<Broadcaster>> = Mutex::new(Broadcaster::create());
-}
-fn extract_filename(path: &str) -> String {
-    let re = Regex::new(r"/([^/]+)$").unwrap();
-    if let Some(captures) = re.captures(path) {
-        if let Some(filename) = captures.get(1) {
-            return filename.as_str().to_string();
-        }
-    }
-    path.to_string()
-}
-
-pub fn add_file(path: &str) -> Uuid {
+pub fn add_file(path: &str) -> SharedFile {
+    let path = PathBuf::from(path);
     let mut file_list = FILE_LIST.lock().unwrap();
-    let mut id = Uuid::new_v4();
-    file_list.entry(String::from(path)).or_insert(id);
 
-    id = match file_list.iter().find_map(|(p, u)| if *p == path { Some(u) } else { None }) {
-        Some(u) => *u,
-        None => id
+    if let Some(existing) = file_list.iter().find(|file| file.path == path) {
+        return existing.clone();
+    }
+
+    let file = SharedFile {
+        id: Uuid::new_v4().to_string(),
+        file_name: display_name(&path),
+        size: file_size(&path),
+        path,
     };
+    file_list.push(file.clone());
+    drop(file_list);
 
-    BROADCASTER.lock().unwrap().broadcast_sync(Message {
-	    action: "file-added".to_string(),
-		payload: json!({
-	        "id": id.to_string(),
-	        "file_name": extract_filename(path)
-	    }).to_string()
+    BROADCASTER.broadcast_sync(Message {
+        action: "file-added".to_string(),
+        payload: json!({
+            "id": file.id,
+            "file_name": file.file_name,
+            "size": file.size,
+        })
+        .to_string(),
     });
 
-    id
+    file
 }
-pub fn clear_files() {
-	FILE_LIST.lock().unwrap().clear();
 
-	BROADCASTER.lock().unwrap().broadcast_sync(Message {
-		action: "all-files-cleared".to_string(),
-		payload: "".to_string()
-	});
+pub fn remove_file(id: &str) -> bool {
+    let mut file_list = FILE_LIST.lock().unwrap();
+    let count_before = file_list.len();
+    file_list.retain(|file| file.id != id);
+    let removed = file_list.len() != count_before;
+    drop(file_list);
+
+    if removed {
+        BROADCASTER.broadcast_sync(Message {
+            action: "file-removed".to_string(),
+            payload: json!({ "id": id }).to_string(),
+        });
+    }
+
+    removed
+}
+
+pub fn clear_files() {
+    FILE_LIST.lock().unwrap().clear();
+
+    BROADCASTER.broadcast_sync(Message {
+        action: "all-files-cleared".to_string(),
+        payload: "".to_string(),
+    });
 }
 // #endregion
+
+/// If `file_name` is already taken in `dir`, append " (n)" before the
+/// extension until the name is free, so uploads never overwrite silently.
+fn unique_save_path(dir: &Path, file_name: &str) -> PathBuf {
+    let candidate = dir.join(file_name);
+    if !candidate.exists() {
+        return candidate;
+    }
+
+    let name = Path::new(file_name);
+    let stem = name
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| file_name.to_string());
+    let extension = name.extension().map(|e| e.to_string_lossy().into_owned());
+
+    for n in 1u32.. {
+        let numbered = match &extension {
+            Some(ext) => format!("{stem} ({n}).{ext}"),
+            None => format!("{stem} ({n})"),
+        };
+        let candidate = dir.join(numbered);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+
+    unreachable!("ran out of candidate file names")
+}
+
+/// Same idea as `unique_save_path`, but for entry names inside the zip
+/// archive, where collisions come from shared files with equal basenames.
+fn unique_zip_name(used: &mut HashMap<String, u32>, file_name: &str) -> String {
+    let n = used.entry(file_name.to_string()).or_insert(0);
+    *n += 1;
+    if *n == 1 {
+        return file_name.to_string();
+    }
+
+    let name = Path::new(file_name);
+    let stem = name
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| file_name.to_string());
+    match name.extension() {
+        Some(ext) => format!("{stem} ({}).{}", *n - 1, ext.to_string_lossy()),
+        None => format!("{stem} ({})", *n - 1),
+    }
+}
+
+fn attachment(file_name: &str) -> ContentDisposition {
+    ContentDisposition {
+        disposition: DispositionType::Attachment,
+        parameters: vec![DispositionParam::Filename(file_name.to_string())],
+    }
+}
+
+/// Open a shared file as a streaming response. `NamedFile` streams from disk
+/// in chunks and supports HTTP Range requests, so large files never have to
+/// fit in memory.
+async fn named_file_response(entry: &SharedFile) -> actix_web::Result<NamedFile> {
+    let file = NamedFile::open_async(&entry.path)
+        .await
+        .map_err(|_| ErrorInternalServerError("Error opening file"))?;
+    Ok(file.set_content_disposition(attachment(&entry.file_name)))
+}
 
 // #region endpoints
 #[get("/list")]
 async fn list() -> impl Responder {
-  let file_list = FILE_LIST.lock().unwrap(); // Acquire lock for safety
-  let json_data = json!(file_list.iter()
-    .map(|(path, id)| (extract_filename(path), id.to_string()))
-    .collect::<HashMap<String, String>>());
-
-    web::Json(json_data) // Return the data as JSON
+    let file_list = FILE_LIST.lock().unwrap();
+    web::Json(file_list.clone())
 }
 
 #[get("/dl/{id}")]
-async fn download(id: web::Path<String>) -> impl Responder {
-	let file_list = FILE_LIST.lock().unwrap();
+async fn download(id: web::Path<String>) -> actix_web::Result<NamedFile> {
+    let entry = FILE_LIST
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|file| file.id == *id)
+        .cloned();
 
-    // Attempt to parse the UUID from the path
-    let uuid = match Uuid::parse_str(&id) {
-        Ok(uuid) => uuid,
-        Err(_) => return HttpResponse::BadRequest().body("Invalid UUID format"),
-    };
-
-    // Find the corresponding file path for the UUID
-    let path = match file_list.iter().find_map(|(path, u)| if *u == uuid { Some(path) } else { None }) {
-        Some(p) => p,
-        None => return HttpResponse::NotFound().body("File not found"),
-    };
-
-    // Attempt to open and read the file
-    let mut file = match File::open(path) {
-        Ok(f) => f,
-        Err(_) => return HttpResponse::InternalServerError().body("Error opening file"),
-    };
-
-    let mut contents = Vec::new();
-    if let Err(_) = file.read_to_end(&mut contents) {
-        return HttpResponse::InternalServerError().body("Error reading file");
+    match entry {
+        Some(entry) => named_file_response(&entry).await,
+        None => Err(ErrorNotFound("File not found")),
     }
-
-    // Get the original filename from the path
-    let filename = match std::path::Path::new(&path).file_name() {
-        Some(name) => name.to_string_lossy().to_string(),
-        None => "file".to_string(),
-    };
-
-    // Create a response with the file contents
-    let response = HttpResponse::Ok()
-        .append_header(("Content-Type", "application/octet-stream"))
-        .append_header(("Content-Disposition", format!("attachment; filename=\"{}\"", filename)))
-        .body(web::Bytes::from(contents));
-
-    response
 }
 
 #[get("/dl")]
-async fn download_all() -> impl Responder {
-	let file_list = FILE_LIST.lock().unwrap();
+async fn download_all() -> actix_web::Result<NamedFile> {
+    let entries: Vec<SharedFile> = FILE_LIST.lock().unwrap().clone();
 
-	if file_list.len() == 1 {
-        let (path, _) = file_list.iter().next().unwrap();
-        let mut file = match File::open(path) {
-            Ok(f) => f,
-            Err(_) => return HttpResponse::InternalServerError().body("Error opening file"),
-        };
+    match entries.len() {
+        0 => Err(ErrorNotFound("No files are being shared")),
+        1 => named_file_response(&entries[0]).await,
+        _ => {
+            // Build the archive in an unnamed temp file (spooled to disk, not
+            // RAM) on a blocking thread, then stream it back with NamedFile.
+            let file = web::block(move || -> std::io::Result<std::fs::File> {
+                let mut tmp = tempfile::tempfile()?;
+                {
+                    let mut zip = ZipWriter::new(&mut tmp);
+                    let options = SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Stored);
+                    let mut used_names = HashMap::new();
 
-        let mut contents = Vec::new();
-        if let Err(_) = file.read_to_end(&mut contents) {
-            return HttpResponse::InternalServerError().body("Error reading file");
+                    for entry in &entries {
+                        let name = unique_zip_name(&mut used_names, &entry.file_name);
+                        let Ok(mut src) = std::fs::File::open(&entry.path) else {
+                            continue; // file was moved/deleted since being shared
+                        };
+                        zip.start_file(name, options)?;
+                        std::io::copy(&mut src, &mut zip)?;
+                    }
+                    zip.finish()?;
+                }
+                tmp.seek(SeekFrom::Start(0))?;
+                Ok(tmp)
+            })
+            .await
+            .map_err(|_| ErrorInternalServerError("Error building archive"))?
+            .map_err(|_| ErrorInternalServerError("Error building archive"))?;
+
+            let named = NamedFile::from_file(file, "files.zip")
+                .map_err(|_| ErrorInternalServerError("Error building archive"))?;
+            Ok(named.set_content_disposition(attachment("files.zip")))
         }
-
-        // Get the original filename from the path
-        let filename = match std::path::Path::new(&path).file_name() {
-            Some(name) => name.to_string_lossy().to_string(),
-            None => "file".to_string(),
-        };
-
-        // Create a response with the file contents
-        return HttpResponse::Ok()
-            .append_header(("Content-Type", "application/octet-stream"))
-            .append_header(("Content-Disposition", format!("attachment; filename=\"{}\"", filename)))
-            .body(web::Bytes::from(contents));
-    } else {
-	    let mut zip_buffer = Vec::new();  // Separate buffer for writing zip data
-	    {
-	        let mut zip = ZipWriter::new(Cursor::new(&mut zip_buffer));
-
-	        let options = FileOptions::default().compression_method(zip::CompressionMethod::Stored);
-
-	        for (path, _) in file_list.iter() {
-	            let filename = std::path::Path::new(path).file_name().unwrap().to_string_lossy();
-
-	            if let Ok(mut file) = File::open(path) {
-	                let mut contents = Vec::new();
-	                if let Err(_) = file.read_to_end(&mut contents) {
-	                    continue;
-	                }
-	                if let Err(_) = zip.start_file(filename.clone(), options) {
-	                    continue;
-	                }
-	                if let Err(_) = zip.write_all(&contents) {
-	                    continue;
-	                }
-	            }
-	        }
-	    } // zip_writer goes out of scope here, allowing zip_buffer to be borrowed again
-
-	    // Reset the cursor to the beginning
-	    let mut cursor = Cursor::new(zip_buffer);
-	    cursor.seek(SeekFrom::Start(0)).unwrap();
-
-	    return HttpResponse::Ok()
-	        .append_header(("Content-Type", "application/zip"))
-	        .append_header(("Content-Disposition", "attachment; filename=\"files.zip\""))
-	        .body(web::Bytes::copy_from_slice(&cursor.into_inner()))
     }
 }
 
@@ -189,58 +244,125 @@ struct UploadForm {
     files: Vec<TempFile>,
 }
 
+/// `NamedTempFile::persist` is a rename under the hood, which fails when the
+/// OS temp dir sits on a different filesystem than the destination (common
+/// with tmpfs on Linux) — fall back to a copy in that case.
+fn persist_temp_file(file: tempfile::NamedTempFile, dest: &Path) -> std::io::Result<()> {
+    match file.persist(dest) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            std::fs::copy(err.file.path(), dest)?;
+            Ok(())
+        }
+    }
+}
+
 #[post("/upload")]
-async fn upload(data: web::Data<AppData>,  MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
+async fn upload(
+    app: web::Data<tauri::AppHandle>,
+    MultipartForm(form): MultipartForm<UploadForm>,
+) -> actix_web::Result<impl Responder> {
+    let save_dir = save_dir();
+    let mut saved = Vec::new();
+
     for f in form.files {
-        let path = format!("{}{}",data.desktop_path.to_string(), f.file_name.unwrap());
-        f.file.persist(path).unwrap();
+        // keep only the final path component so a crafted name can't escape the save dir
+        let file_name = f
+            .file_name
+            .as_deref()
+            .and_then(|name| Path::new(name).file_name())
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+        let path = unique_save_path(&save_dir, &file_name);
+
+        persist_temp_file(f.file, &path).map_err(|err| {
+            ErrorInternalServerError(format!("Failed to save \"{file_name}\": {err}"))
+        })?;
+
+        saved.push(json!({
+            "name": display_name(&path),
+            "path": path.display().to_string(),
+            "size": file_size(&path),
+        }));
     }
 
-   HttpResponse::Ok()
+    for info in &saved {
+        let _ = app.emit("file-received", info);
+    }
+
+    Ok(HttpResponse::Ok().json(json!({ "saved": saved })))
 }
 
 #[get("/events")]
 async fn event_stream() -> impl Responder {
-	BROADCASTER.lock().unwrap().new_client().await
+    BROADCASTER.new_client().await
 }
+// #endregion
 
 #[main]
-pub async fn start(resource_path: &str, desktop_path: &str) -> std::io::Result<()> {
-    let (tx, mut rx) = mpsc::channel(1); // Create a channel for shutdown signal
-
-    let resource_path = Arc::new(resource_path.to_owned());
-    let desktop_path = Arc::new(desktop_path.to_owned());
-
-    tokio::spawn(async move {
-        if let Err(err) = ctrl_c().await {
-            eprintln!("Error receiving Ctrl-C: {}", err);
-        }
-        tx.send(()).await.unwrap(); // Send shutdown signal
-    });
-
+pub async fn start(app: tauri::AppHandle, resource_path: PathBuf) -> std::io::Result<()> {
     HttpServer::new(move || {
-    	let resource_path = resource_path.clone();
-    	let desktop_path = desktop_path.clone();
-    	let cors = Cors::default().allow_any_method().allow_any_header().allow_any_origin().send_wildcard();
+        let cors = Cors::default()
+            .allow_any_method()
+            .allow_any_header()
+            .allow_any_origin()
+            .send_wildcard();
 
-	    App::new()
-			.app_data(MultipartFormConfig::default()
-            	.total_limit(100 * 1024 * 1024 * 1024) // 100GB: https://docs.rs/actix-multipart/latest/actix_multipart/form/struct.MultipartFormConfig.html
-         	)
-	        .app_data(web::Data::new(AppData { desktop_path: desktop_path.to_string() }))
-			.wrap(cors)
-	    	.service(list)
-	     	.service(download)
-	     	.service(download_all)
-	     	.service(upload)
-			.service(event_stream)
-        	.service(fs::Files::new("/", resource_path.clone().as_ref()).show_files_listing().index_file("index.html").use_last_modified(true))
+        App::new()
+            .app_data(
+                MultipartFormConfig::default().total_limit(100 * 1024 * 1024 * 1024), // 100GB: https://docs.rs/actix-multipart/latest/actix_multipart/form/struct.MultipartFormConfig.html
+            )
+            .app_data(web::Data::new(app.clone()))
+            .wrap(cors)
+            .service(list)
+            .service(download)
+            .service(download_all)
+            .service(upload)
+            .service(event_stream)
+            .service(
+                actix_files::Files::new("/", &resource_path)
+                    .index_file("index.html")
+                    .use_last_modified(true),
+            )
     })
     .bind(("0.0.0.0", 8080))?
     .bind(("::1", 8080))?
     .run()
-    .await?;
+    .await
+}
 
-    rx.recv().await.unwrap(); // Wait for shutdown signal
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_name_returns_basename() {
+        assert_eq!(display_name(Path::new("/home/user/notes.txt")), "notes.txt");
+    }
+
+    #[test]
+    fn unique_save_path_numbers_collisions() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.txt"), b"x").unwrap();
+        std::fs::write(dir.path().join("a (1).txt"), b"x").unwrap();
+
+        assert_eq!(
+            unique_save_path(dir.path(), "a.txt"),
+            dir.path().join("a (2).txt")
+        );
+        assert_eq!(
+            unique_save_path(dir.path(), "b.txt"),
+            dir.path().join("b.txt")
+        );
+    }
+
+    #[test]
+    fn unique_zip_name_numbers_duplicates() {
+        let mut used = HashMap::new();
+        assert_eq!(unique_zip_name(&mut used, "a.txt"), "a.txt");
+        assert_eq!(unique_zip_name(&mut used, "a.txt"), "a (1).txt");
+        assert_eq!(unique_zip_name(&mut used, "a.txt"), "a (2).txt");
+        assert_eq!(unique_zip_name(&mut used, "b"), "b");
+        assert_eq!(unique_zip_name(&mut used, "b"), "b (1)");
+    }
 }

@@ -1,8 +1,4 @@
 <template>
-    <!-- TODO:
-- splashscreen for guest (show drag fn)
-- splashscreen for host (show local ip - with tnc saying if under same network / public ip)
--->
     <div class="grow flex flex-col">
         <Transition
             enter-from-class="scale-105 opacity-80"
@@ -17,11 +13,27 @@
                 >
                     <div class="m-auto space-y-8 w-full text-center">
                         <h1
-                            className="text-4xl font-extrabold tracking-tight lg:text-5xl"
+                            class="text-4xl font-extrabold tracking-tight lg:text-5xl"
                         >
                             Uploading...
                         </h1>
-                        <Progress v-model="uploadPercentage" />
+                        <ul
+                            class="mx-auto max-w-xl max-h-64 overflow-y-auto space-y-3 text-left"
+                        >
+                            <li
+                                v-for="[name, percentage] in uploadEntries"
+                                :key="name"
+                                class="space-y-1"
+                            >
+                                <div class="flex justify-between gap-4 text-sm">
+                                    <span class="truncate">{{ name }}</span>
+                                    <span class="whitespace-nowrap"
+                                        >{{ percentage }}%</span
+                                    >
+                                </div>
+                                <Progress :model-value="percentage" />
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </section>
@@ -40,7 +52,7 @@
                         class="grow flex flex-col p-4 border-4 border-white border-dashed rounded-lg"
                     >
                         <UploadIcon
-                            class="animate-[appear-from-inside_300ms_150ms_ease-in-out_backwards] m-auto w-full h-full max-w-20"
+                            class="animate-appear-from-inside m-auto w-full h-full max-w-20"
                         />
                     </div>
                 </div>
@@ -53,7 +65,7 @@
                     class="grid sm:grid-flow-col gap-2 items-center w-full sm:ml-auto sm:w-auto"
                 >
                     <Button
-                        class="order-2 sm:order-none"
+                        class="order-2 sm:order-0"
                         variant="secondary"
                         size="lg"
                         @click="openFileDialog"
@@ -88,7 +100,7 @@ import axios from "axios";
 
 import { FileViewModel } from "@/types/File";
 
-import { UploadIcon, DownloadIcon } from "lucide-vue-next";
+import { UploadIcon, DownloadIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import FileDownloadTable from "@/components/organisms/FileDownloadTable.vue";
@@ -103,36 +115,48 @@ onMounted(() => {
 const { data } = useEventSource("/events");
 
 // #region listing
+interface SharedFileDto {
+    id: string;
+    file_name: string;
+    size: number;
+}
+
 const list = ref<FileViewModel[]>([]);
 onMounted(async () => {
-    const { statusText, status, code, data } = await axios
-        .get(`${unref(ip)}/list`)
-        .catch((error) => error);
-
-    if (statusText !== "OK") {
-        toast.error(`Failed to get file list!`, {
-            description: `Get file list with status: ${status}; code: ${code}`,
+    try {
+        const { data } = await axios.get<SharedFileDto[]>(`${unref(ip)}/list`);
+        list.value = data.map(({ id, file_name, size }) => ({
+            id,
+            fileName: file_name,
+            size,
+        }));
+    } catch (error) {
+        toast.error("Failed to get file list!", {
+            description: String(error),
         });
-
-        return;
     }
-
-    list.value = Object.entries(data).map(([fileName, id]) => ({
-        id,
-        fileName,
-    }));
 });
 watch(data, (v) => {
+    if (!v) return;
+
     try {
         const { action, payload } = JSON.parse(v);
 
         switch (action) {
             case "file-added": {
-                const { id, file_name } = JSON.parse(payload);
-                if (unref(list).find((v) => v.id === id)) return;
+                const { id, file_name, size } = JSON.parse(payload);
+                if (unref(list).find((entry) => entry.id === id)) return;
 
-                list.value = [...unref(list), { id, fileName: file_name }];
+                list.value = [
+                    ...unref(list),
+                    { id, fileName: file_name, size },
+                ];
 
+                break;
+            }
+            case "file-removed": {
+                const { id } = JSON.parse(payload);
+                list.value = unref(list).filter((entry) => entry.id !== id);
                 break;
             }
             case "all-files-cleared": {
@@ -142,7 +166,6 @@ watch(data, (v) => {
         }
     } catch (err) {}
 });
-
 // #endregion
 
 // #region download
@@ -161,63 +184,67 @@ const handleDownloadAll = () => {
 
 // #region upload
 const isUploading = ref(false);
-const uploadProgresses = ref<{ [id: string]: number }>({});
-const uploadPercentage = computed(() => {
-    const percentages = Object.values(unref(uploadProgresses)).filter(
-        (v) => v < 100,
-    );
-
-    if (!percentages.length) return 0;
-
-    return (
-        percentages.reduce((acc, percentage) => acc + percentage, 0) /
-        percentages.length
-    );
-});
+const uploadProgresses = ref<{ [name: string]: number }>({});
+const uploadEntries = computed(() =>
+    Object.entries(unref(uploadProgresses)),
+);
+// one request per file so each row in the overlay gets its own real progress
 const uploadFiles = async (files: File[]) => {
-    if (!Array.isArray(files)) throw new Error("No files are selected.");
-
-    const formData = new FormData();
-    files.forEach((file) => {
-        formData.append("file", file);
-    });
-
-    isUploading.value = true;
-    const id = `${Date.now()}`;
-    const response = await axios
-        .post(`${unref(ip)}/upload`, formData, {
-            headers: {
-                "Content-Type": "multipart/form-data",
-            },
-            onUploadProgress: (progressEvent) => {
-                uploadProgresses.value[id] = Math.round(
-                    progressEvent.progress * 100,
-                );
-            },
-        })
-        .catch((error) => error);
-    isUploading.value = false;
-    uploadProgresses.value = Object.fromEntries(
-        Object.entries(unref(uploadProgresses)).filter(
-            ([_id, _progress]) => _id !== id || _progress < 100,
-        ),
-    );
-
-    if (response.statusText !== "OK") {
-        toast.error(`Failed Upload!`, {
-            description: `Upload failed with status: ${response.status}; code: ${response.code}`,
-        });
-
-        return;
+    if (!Array.isArray(files) || files.length === 0) {
+        throw new Error("No files are selected.");
     }
 
-    if (files.length === 1) {
-        toast.success("Successful Upload!", {
-            description: `Your file "${files[0].name}" is successfully uploaded.`,
+    isUploading.value = true;
+    uploadProgresses.value = Object.fromEntries(
+        files.map((file) => [file.name, 0]),
+    );
+
+    const results = await Promise.allSettled(
+        files.map(async (file) => {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            await axios.post(`${unref(ip)}/upload`, formData, {
+                onUploadProgress: (progressEvent) => {
+                    uploadProgresses.value = {
+                        ...unref(uploadProgresses),
+                        [file.name]: Math.round(
+                            (progressEvent.progress ?? 0) * 100,
+                        ),
+                    };
+                },
+            });
+
+            return file.name;
+        }),
+    );
+
+    isUploading.value = false;
+    uploadProgresses.value = {};
+
+    const succeeded = results
+        .filter(
+            (result): result is PromiseFulfilledResult<string> =>
+                result.status === "fulfilled",
+        )
+        .map((result) => result.value);
+    const failed = files
+        .map((file) => file.name)
+        .filter((name) => !succeeded.includes(name));
+
+    if (failed.length > 0) {
+        toast.error(failed.length === 1 ? "Failed Upload!" : "Failed Uploads!", {
+            description: `Could not upload: ${failed.join(", ")}`,
         });
-    } else {
+    }
+
+    if (succeeded.length === 1) {
+        toast.success("Successful Upload!", {
+            description: `Your file "${succeeded[0]}" is successfully uploaded.`,
+        });
+    } else if (succeeded.length > 1) {
         toast.success("Successful Uploads!", {
-            description: `Your files are successfully uploaded: ${files.map((file) => file.name).join(", ")}`,
+            description: `Your files are successfully uploaded: ${succeeded.join(", ")}`,
         });
     }
 };
@@ -227,27 +254,23 @@ const { isOverDropZone: doShowDragAndDrop } = useDropZone(dropZoneRef, {
     onDrop: async (files: File[] | null, event: DragEvent) => {
         const directoryPaths = Object.values(event.dataTransfer?.items ?? {})
             .map((item) => item.webkitGetAsEntry())
-            .filter((item) => item?.isDirectory)
+            .filter((item): item is FileSystemEntry => !!item?.isDirectory)
             .map((item) => item.name);
 
         if (directoryPaths.length > 0) {
             toast.error(
-                directoryPaths.length
+                directoryPaths.length === 1
                     ? "Cannot add directory!"
-                    : "Cannot add directories",
+                    : "Cannot add directories!",
                 {
-                    // @ts-ignore
                     description: directoryPaths.join(", "),
                 },
             );
             return;
         }
 
-        if (!files) {
-            toast.error("No files detected!", {
-                // @ts-ignore
-                description: error,
-            });
+        if (!files || files.length === 0) {
+            toast.error("No files detected!");
             return;
         }
 
@@ -262,13 +285,14 @@ const { open: openFileDialog, onChange: onfileDialogFilesChange } =
     useFileDialog({
         multiple: true,
     });
-onfileDialogFilesChange(async (files: FileList) => {
+onfileDialogFilesChange(async (files: FileList | null) => {
+    if (!files) return;
+
     try {
         await uploadFiles([...files]);
     } catch (error) {
         toast.error("Failed to upload files!", {
-            // @ts-ignore
-            description: error,
+            description: String(error),
         });
     }
 });

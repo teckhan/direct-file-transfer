@@ -27,17 +27,19 @@ unref(isDark)
     : document.documentElement.classList.remove("dark");
 </script>
 
-<style global>
-@import "assets/index.css";
-
+<style>
 body {
-    @apply min-h-screen;
+    /* dvh over vh: vh misbehaves with Safari's dynamic toolbar */
+    min-height: 100vh;
+    min-height: 100dvh;
 }
 
 body,
 #app,
 main {
-    @apply flex grow flex-col;
+    display: flex;
+    flex-grow: 1;
+    flex-direction: column;
 }
 
 :root:not(.dark):not(.is-host) {

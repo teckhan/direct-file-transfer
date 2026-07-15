@@ -1,22 +1,15 @@
-import { resolve } from "path";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import VueDevTools from "vite-plugin-vue-devtools";
-import tailwind from "tailwindcss";
-import autoprefixer from "autoprefixer";
+import tailwindcss from "@tailwindcss/vite";
 import { internalIpV4 } from "internal-ip";
 
-// @ts-expect-error process is a nodejs global
-const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
+const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM ?? "");
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-    css: {
-        postcss: {
-            plugins: [tailwind(), autoprefixer()],
-        },
-    },
-    plugins: [vue(), VueDevTools()],
+    plugins: [vue(), VueDevTools(), tailwindcss()],
     resolve: {
         alias: {
             "@": resolve(__dirname, "./src"),

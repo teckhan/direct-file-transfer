@@ -1,6 +1,6 @@
 {
     "productName": "Direct File Transfer",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "identifier": "com.dft.dev",
     "build": {
         "beforeDevCommand": "yarn build && yarn dev",
@@ -32,6 +32,6 @@
             "icons/icon.icns",
             "icons/icon.ico"
         ],
-        "resources": ["../dist/*"]
+        "resources": { "../dist/": "dist/" }
     }
 }
