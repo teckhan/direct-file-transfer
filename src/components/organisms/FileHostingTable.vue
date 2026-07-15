@@ -111,6 +111,8 @@ import {
     useVueTable,
 } from "@tanstack/vue-table";
 
+import { Trash2Icon } from "@lucide/vue";
+
 import { Button } from "@/components/ui/button";
 import {
     Table,
@@ -120,7 +122,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 
 const props = withDefaults(
     defineProps<{
@@ -131,11 +133,40 @@ const props = withDefaults(
     },
 );
 
+const emit = defineEmits<{
+    remove: [id: string];
+}>();
+
 const columnHelper = createColumnHelper<FileViewModel>();
 const columns = [
     columnHelper.accessor("fileName", {
         header: () => h("div", null, "File Name"),
         cell: ({ row }) => h("div", null, row.getValue("fileName")),
+    }),
+    columnHelper.accessor("size", {
+        header: () => h("div", { class: "text-right" }, "Size"),
+        cell: ({ row }) =>
+            h(
+                "div",
+                { class: "text-right whitespace-nowrap" },
+                formatBytes(row.original.size),
+            ),
+    }),
+    columnHelper.display({
+        id: "actions",
+        enableHiding: false,
+        header: () => h("div", { class: "text-right" }, "Actions"),
+        cell: ({ row }) =>
+            h(
+                Button,
+                {
+                    variant: "ghost",
+                    size: "icon",
+                    "aria-label": `Remove ${row.original.fileName}`,
+                    onClick: () => emit("remove", row.original.id),
+                },
+                () => h(Trash2Icon, { class: "h-4 w-4" }),
+            ),
     }),
 ];
 

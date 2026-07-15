@@ -1,15 +1,14 @@
 use std::{sync::Arc, time::Duration};
 
-use actix_web::rt::time::interval;
 use actix_web_lab::{
     sse::{self, Sse},
     util::InfallibleStream,
 };
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use serde::{Serialize, Deserialize};
-use serde_json::json;
 
 pub struct Broadcaster {
     inner: Mutex<BroadcasterInner>,
@@ -28,6 +27,10 @@ pub struct Message {
 
 impl Broadcaster {
     /// Constructs new broadcaster and spawns ping loop.
+    ///
+    /// The ping loop runs on the tauri runtime (not `actix_web::rt`) because
+    /// the broadcaster may be created lazily from a tauri command thread,
+    /// outside any actix `System`.
     pub fn create() -> Arc<Self> {
         let this = Arc::new(Broadcaster {
             inner: Mutex::new(BroadcasterInner::default()),
@@ -41,8 +44,8 @@ impl Broadcaster {
     /// Pings clients every 10 seconds to see if they are alive and remove them from the broadcast
     /// list if not.
     fn spawn_ping(this: Arc<Self>) {
-        actix_web::rt::spawn(async move {
-            let mut interval = interval(Duration::from_secs(10));
+        tauri::async_runtime::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(10));
 
             loop {
                 interval.tick().await;
@@ -74,12 +77,18 @@ impl Broadcaster {
     pub async fn new_client(&self) -> Sse<InfallibleStream<ReceiverStream<sse::Event>>> {
         let (tx, rx) = mpsc::channel(10);
 
-        tx.send(sse::Data::new(
-        	json!(Message {
-				action: "connected".to_string(),
-				payload: "".to_string()
-			}).to_string()
-        ).into()).await.unwrap();
+        let _ = tx
+            .send(
+                sse::Data::new(
+                    json!(Message {
+                        action: "connected".to_string(),
+                        payload: "".to_string()
+                    })
+                    .to_string(),
+                )
+                .into(),
+            )
+            .await;
 
         self.inner.lock().clients.push(tx);
 
@@ -87,25 +96,15 @@ impl Broadcaster {
     }
 
     /// Broadcasts `msg` to all clients.
-    // pub async fn broadcast(&self, msg: &str) {
-    //     let clients = self.inner.lock().clients.clone();
-
-    //     let send_futures = clients
-    //         .iter()
-    //         .map(|client| client.send(sse::Data::new(msg).into()));
-
-    //     // try to send to all clients, ignoring failures
-    //     // disconnected clients will get swept up by `remove_stale_clients`
-    //     let _ = future::join_all(send_futures).await;
-    // }
-
     pub fn broadcast_sync(&self, msg: Message) {
         let clients = self.inner.lock().clients.clone();
-        let msg_copy = msg.to_owned();
 
         tauri::async_runtime::spawn(async move {
             for client in clients.iter() {
-                let _ = client.send(sse::Data::new(json!(msg_copy).to_string()).into()).await; // Ignoring potential errors
+                // ignore send failures; disconnected clients are swept up by the ping loop
+                let _ = client
+                    .send(sse::Data::new(json!(msg).to_string()).into())
+                    .await;
             }
         });
     }

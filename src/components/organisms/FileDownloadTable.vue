@@ -121,7 +121,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 
 const props = withDefaults(
     defineProps<{
@@ -141,6 +141,15 @@ const columns = [
     columnHelper.accessor("fileName", {
         header: () => h("div", null, "File Name"),
         cell: ({ row }) => h("div", null, row.getValue("fileName")),
+    }),
+    columnHelper.accessor("size", {
+        header: () => h("div", { class: "text-right" }, "Size"),
+        cell: ({ row }) =>
+            h(
+                "div",
+                { class: "text-right whitespace-nowrap" },
+                formatBytes(row.original.size),
+            ),
     }),
     columnHelper.display({
         id: "actions",
