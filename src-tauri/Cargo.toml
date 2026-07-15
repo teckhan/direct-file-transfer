@@ -12,27 +12,29 @@ name = "tauri_app_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.0.0-beta", features = [] }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2.0.0-beta", features = [] }
+tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-actix-web = "4.5.1"
-tokio = "1.36.0"
-uuid = "1.7.0"
-lazy_static = "1.4.0"
-regex = "1.10.3"
-zip = "0.6.6"
-local-ip-address = "0.6.1"
-tauri-plugin-dialog = "2.0.0-beta.1"
-tauri-plugin-fs = "2.0.0-beta.1"
-actix-files = "0.6.5"
-actix-multipart = "0.6.1"
-actix-cors = "0.7.0"
-actix-web-lab = "0.20.2"
-parking_lot = "0.12.1"
-tokio-stream = "0.1.14"
+actix-web = "4.14.0"
+tokio = { version = "1.52.3", features = ["sync", "signal"] }
+uuid = { version = "1.23.5", features = ["v4"] }
+lazy_static = "1.5.0"
+regex = "1.13.0"
+# write-only usage with `CompressionMethod::Stored`; `time` keeps real modification
+# timestamps in zip entry metadata
+zip = { version = "8.6.0", default-features = false, features = ["time"] }
+local-ip-address = "0.6.13"
+tauri-plugin-dialog = "2.7.1"
+tauri-plugin-fs = "2.5.1"
+actix-files = "0.6.10"
+actix-multipart = "0.8.0"
+actix-cors = "0.7.1"
+actix-web-lab = "0.26.0"
+parking_lot = "0.12.5"
+tokio-stream = "0.1.18"
 public-ip = "0.2.2"
 
 [features]

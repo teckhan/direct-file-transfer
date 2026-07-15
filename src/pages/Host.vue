@@ -13,7 +13,7 @@
                         class="grow flex flex-col p-4 border-4 border-foreground border-dashed rounded-lg"
                     >
                         <UploadIcon
-                            class="animate-[appear-from-inside_300ms_150ms_ease-in-out_backwards] m-auto w-full h-full max-w-20"
+                            class="animate-appear-from-inside m-auto w-full h-full max-w-20"
                         />
                     </div>
                 </div>
@@ -38,7 +38,7 @@
                     <Button
                         variant="secondary"
                         size="icon"
-                        @click="copyToClipboard(publicIp)"
+                        @click="publicIp && copyToClipboard(publicIp)"
                     >
                         <ClipboardIcon className="h-4 w-4" />
                     </Button>
@@ -56,7 +56,10 @@
                     />
                 </div>
                 <div>
-                    <Button size="icon" @click="copyToClipboard(localIp)">
+                    <Button
+                        size="icon"
+                        @click="localIp && copyToClipboard(localIp)"
+                    >
                         <ClipboardIcon className="h-4 w-4" />
                     </Button>
                 </div>
@@ -93,7 +96,7 @@
 
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { listen, TauriEvent } from "@tauri-apps/api/event";
 import { readDir } from "@tauri-apps/plugin-fs";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ref, unref, watch, onBeforeMount, onUnmounted } from "vue";
@@ -106,7 +109,7 @@ import {
     Trash2Icon,
     UploadIcon,
     ClipboardIcon,
-} from "lucide-vue-next";
+} from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -143,7 +146,7 @@ const unlistenList: Awaited<ReturnType<typeof listen>>[] = [];
 
 // #region listing
 const list = ref<FileViewModel[]>([]);
-listen("file-added", (event) => {
+listen<{ id: string; path: string }>("file-added", (event) => {
     list.value = [
         ...unref(list).filter(
             (entry) =>
@@ -187,7 +190,7 @@ const openFilePickerToAddFilesToHost = async () => {
         });
         if (!files) throw new Error("Failed to select files.");
 
-        addFilesToHost(files.map((file) => file.path));
+        addFilesToHost(files);
     } catch (error) {
         toast.error("Failed to add file to host!", {
             // @ts-ignore
@@ -195,7 +198,7 @@ const openFilePickerToAddFilesToHost = async () => {
         });
     }
 };
-listen("tauri://file-drop", async (event) => {
+listen<{ paths: string[] }>(TauriEvent.DRAG_DROP, async (event) => {
     const directoryPaths = (
         await Promise.all(
             event.payload.paths.map(
@@ -231,10 +234,10 @@ listen("tauri://file-drop", async (event) => {
         doShowDragAndDrop.value = false;
     }
 }).then((cb) => unlistenList.push(cb));
-listen("tauri://file-drop-hover", async () => {
+listen(TauriEvent.DRAG_ENTER, async () => {
     doShowDragAndDrop.value = true;
 }).then((cb) => unlistenList.push(cb));
-listen("tauri://file-drop-cancelled", async () => {
+listen(TauriEvent.DRAG_LEAVE, async () => {
     doShowDragAndDrop.value = false;
 }).then((cb) => unlistenList.push(cb));
 // #endregion
@@ -244,7 +247,7 @@ const clearAllFilesToHost = async () => {
         "You're aboout to clear all files to host.",
         {
             title: "Are you sure?",
-            type: "warning",
+            kind: "warning",
         },
     );
 

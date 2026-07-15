@@ -12,7 +12,7 @@ use uuid::Uuid;
 use serde_json::json;
 use lazy_static::lazy_static;
 use regex::Regex;
-use zip::write::FileOptions;
+use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
 mod broadcast;
@@ -152,7 +152,7 @@ async fn download_all() -> impl Responder {
 	    {
 	        let mut zip = ZipWriter::new(Cursor::new(&mut zip_buffer));
 
-	        let options = FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+	        let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
 	        for (path, _) in file_list.iter() {
 	            let filename = std::path::Path::new(path).file_name().unwrap().to_string_lossy();

@@ -110,7 +110,7 @@ import {
     getPaginationRowModel,
     useVueTable,
 } from "@tanstack/vue-table";
-import { DownloadIcon } from "lucide-vue-next";
+import { DownloadIcon } from "@lucide/vue";
 
 import { Button } from "@/components/ui/button";
 import {

@@ -40,7 +40,7 @@
                         class="grow flex flex-col p-4 border-4 border-white border-dashed rounded-lg"
                     >
                         <UploadIcon
-                            class="animate-[appear-from-inside_300ms_150ms_ease-in-out_backwards] m-auto w-full h-full max-w-20"
+                            class="animate-appear-from-inside m-auto w-full h-full max-w-20"
                         />
                     </div>
                 </div>
@@ -88,7 +88,7 @@ import axios from "axios";
 
 import { FileViewModel } from "@/types/File";
 
-import { UploadIcon, DownloadIcon } from "lucide-vue-next";
+import { UploadIcon, DownloadIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import FileDownloadTable from "@/components/organisms/FileDownloadTable.vue";
@@ -105,9 +105,11 @@ const { data } = useEventSource("/events");
 // #region listing
 const list = ref<FileViewModel[]>([]);
 onMounted(async () => {
+    // on failure the AxiosError is merged into the same destructure, so the
+    // error path is deliberately untyped
     const { statusText, status, code, data } = await axios
-        .get(`${unref(ip)}/list`)
-        .catch((error) => error);
+        .get<Record<string, string>>(`${unref(ip)}/list`)
+        .catch((error) => error as any);
 
     if (statusText !== "OK") {
         toast.error(`Failed to get file list!`, {
@@ -117,10 +119,12 @@ onMounted(async () => {
         return;
     }
 
-    list.value = Object.entries(data).map(([fileName, id]) => ({
-        id,
-        fileName,
-    }));
+    list.value = Object.entries(data as Record<string, string>).map(
+        ([fileName, id]) => ({
+            id,
+            fileName,
+        }),
+    );
 });
 watch(data, (v) => {
     try {
@@ -191,7 +195,7 @@ const uploadFiles = async (files: File[]) => {
             },
             onUploadProgress: (progressEvent) => {
                 uploadProgresses.value[id] = Math.round(
-                    progressEvent.progress * 100,
+                    (progressEvent.progress ?? 0) * 100,
                 );
             },
         })
@@ -227,7 +231,7 @@ const { isOverDropZone: doShowDragAndDrop } = useDropZone(dropZoneRef, {
     onDrop: async (files: File[] | null, event: DragEvent) => {
         const directoryPaths = Object.values(event.dataTransfer?.items ?? {})
             .map((item) => item.webkitGetAsEntry())
-            .filter((item) => item?.isDirectory)
+            .filter((item): item is FileSystemEntry => !!item?.isDirectory)
             .map((item) => item.name);
 
         if (directoryPaths.length > 0) {
@@ -262,7 +266,9 @@ const { open: openFileDialog, onChange: onfileDialogFilesChange } =
     useFileDialog({
         multiple: true,
     });
-onfileDialogFilesChange(async (files: FileList) => {
+onfileDialogFilesChange(async (files: FileList | null) => {
+    if (!files) return;
+
     try {
         await uploadFiles([...files]);
     } catch (error) {
